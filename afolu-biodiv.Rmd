@@ -1,0 +1,156 @@
+---
+title: "AFOLU and Biodiversity"
+author: "Marcus Thomson"
+date: '2022-02-25'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries
+```{r, message=FALSE}
+library(tidyverse)
+library(raster)
+library(sf)
+library(maps)
+```
+
+
+## Load data
+### Biodiversity
+Species richness for all species.
+Source: IUCN. (2022). IUCN Redlist database. <https://www.iucnredlist.org> Retrieved: 25/02/2022.
+```{r}
+biodiv_data <- raster("data/Richness_all.tif")
+```
+
+### Country political borders
+Shapefiles for country-level political boundaries (borders).
+Source: <https://public.opendatasoft.com/explore/dataset/world-administrative-boundaries>
+NB: Should update this to use a newer method.
+```{r, message=FALSE}
+borders_only <- readOGR(dsn = "data/world-administrative-boundaries", layer = "world-administrative-boundaries")
+```
+
+## Pathways & historical data
+Historical data from the FAO.
+Source: FAO.
+```{r, show_col_types=FALSE}
+pathways <- readr::read_csv("data/food_feed_pathways.csv")
+hist_fao <- readr::read_csv("data/food_feed_fao.csv")
+```
+
+DF to map ISO3 codes to country names.
+```{r}
+country_code_map <- data.frame(iso3 = borders_only$iso3, country = borders_only$name)
+```
+
+
+```{r}
+country_code_map %>%
+  dplyr::right_join(
+    hist_fao %>%
+      dplyr::select(-area_code) %>%
+      dplyr::distinct(area) %>%
+      rename(country = area)
+  )
+
+
+```
+
+
+## Crop and mask biodiversity raster
+Make a list of extant country iso3 codes.
+```{r}
+country_iso3_codes <- borders_only@data$iso3[!is.na(borders_only@data$iso3)]
+country_iso3_codes <- as.character(country_iso3_codes[order(country_iso3_codes)])
+country_iso3_df <- data.frame(index = country_iso3_codes %>% dplyr::row_number(), 
+           iso3 = country_iso3_codes)
+```
+
+Crop and then mask `biodiv_data` by individual country border polygons.
+```{r}
+borders_only_sub <-
+  borders_only[as.character(borders_only@data$iso3) %in% country_iso3_df$iso3,]
+```
+
+Loop over iso3 codes to make a list of biodiveristy rasters for each country. (Bound to be a slicker way of doing this.)
+```{r}
+biodiv_country_rast <- list()
+for (country_iso3 in country_iso3_codes[1:10]) {
+  biodiv_sub <-
+    crop(biodiv_data, extent(borders_only_sub[borders_only_sub$iso3 == country_iso3, ]))
+  biodiv_country_rast[[country_iso3]] <-
+    mask(biodiv_sub, borders_only_sub[borders_only_sub$iso3 == country_iso3, ])
+}
+```
+
+Extract some basic data (mean, sd, median, min, max) from each of these.
+```{r}
+get_raster_summary <- function(x) {
+  tmp1 <- raster::values(x) %>%
+    na.omit() %>%
+    summary() %>%
+    as.vector()
+  
+  tmp2 <- raster::values(x) %>%
+    na.omit() %>%
+    sd()
+  
+  return(data.frame(
+    names = c(
+      "min",
+      "first_quart",
+      "median",
+      "mean",
+      "third_quart",
+      "max",
+      "sd"
+    ),
+    biodiv = c(tmp1, tmp2)
+  ))
+}
+
+biodiv_country_moments <- lapply(biodiv_country_rast, FUN = get_raster_summary)
+```
+
+
+```{r}
+tmp <- pathways %>% 
+  dplyr::filter(target_year==2050 & iso_alpha3=="AFG" & food_group=="animal products" & scenario=="SSP1" & diet_plan=="CNS-CFP") %>% 
+  dplyr::pull(diff1) %>% 
+  na.omit() 
+```
+
+
+```{r}
+hist_fao
+```
+
+
+```{r}
+
+hist(tmp, breaks = 10)
+
+```
+
+
+
+```{r}
+
+```
+
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+
+```
+
+
