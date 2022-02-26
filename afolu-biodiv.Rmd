@@ -40,21 +40,21 @@ Source: FAO.
 ```{r, show_col_types=FALSE}
 pathways <- readr::read_csv("data/food_feed_pathways.csv")
 hist_fao <- readr::read_csv("data/food_feed_fao.csv")
+hist_fao <- hist_fao %>%
+   dplyr::rename(fao_countrycode = area_code)
 ```
 
+## Country code map
 DF to map ISO3 codes to country names.
 ```{r}
-country_code_map <- data.frame(iso3 = borders_only$iso3, country = borders_only$name)
+country_code_map <- readr::read_csv("data/country_mapper.csv")
 ```
 
 
 ```{r}
-country_code_map %>%
+tmp <- country_code_map %>%
   dplyr::right_join(
-    hist_fao %>%
-      dplyr::select(-area_code) %>%
-      dplyr::distinct(area) %>%
-      rename(country = area)
+    hist_fao 
   )
 
 
