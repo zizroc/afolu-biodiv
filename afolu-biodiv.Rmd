@@ -44,13 +44,13 @@ hist_fao <- hist_fao %>%
    dplyr::rename(fao_countrycode = area_code)
 ```
 
-## Country code map
+## Map country names to ISO codes
 DF to map ISO3 codes to country names.
 ```{r}
 country_code_map <- readr::read_csv("data/country_mapper.csv")
 ```
 
-
+Reorganize the historical FAO data to make it more alike the projected pathways data frame.
 ```{r}
 historical_pathways <- country_code_map %>%
   dplyr::right_join(
@@ -65,7 +65,6 @@ historical_pathways <- country_code_map %>%
   ) %>% 
   dplyr::select(iso_alpha3, diet_plan, scenario, food_group, year, kt_yr, kt_yr_smoothed, diff1, diff2)
 ```
-
 
 ## Crop and mask biodiversity raster
 Make a list of extant country iso3 codes.
@@ -119,26 +118,55 @@ get_raster_summary <- function(x) {
   ))
 }
 
-biodiv_country_moments <- lapply(biodiv_country_rast, FUN = get_raster_summary)
+biodiv_country_moments <-
+  lapply(biodiv_country_rast, FUN = get_raster_summary)
 ```
 
 
 ```{r}
-tmp <- pathways %>% 
-  dplyr::filter(target_year==2050 & iso_alpha3=="AFG" & food_group=="animal products" & scenario=="SSP1" & diet_plan=="CNS-CFP") %>% 
-  dplyr::pull(diff1) %>% 
+tmp1 <- pathways %>%
+  dplyr::filter(
+    target_year == 2050 &
+      iso_alpha3 == "AFG" &
+      food_group == "animal products" &
+      scenario == "SSP1" & diet_plan == "CNS-CFP"
+  ) %>%
+  dplyr::pull(diff1) %>%
   na.omit() 
 ```
 
 
 ```{r}
-hist_fao
+tmp2 <- historical_pathways %>%
+  dplyr::filter(
+      iso_alpha3 == "AFG" &
+      food_group == "animal products"
+  ) %>%
+  dplyr::pull(diff1) %>%
+  na.omit() 
 ```
 
 
 ```{r}
 
-hist(tmp, breaks = 10)
+ggplot(
+  data = pathways %>%
+    dplyr::filter(
+      iso_alpha3 == "AFG" &
+        food_group == "plant products" &
+        diet_plan == "CNS-CFP" & 
+        scenario == "SSP3"
+    ),
+  aes(x = diff2)
+) +
+  geom_density(aes(fill = as.factor(target_year)), 
+               alpha = 0.5) + 
+  geom_density(data = historical_pathways %>%
+    dplyr::filter(
+      iso_alpha3 == "AFG" &
+        food_group == "plant products"), 
+               mapping = aes(x = diff2), 
+               alpha = 0.1)
 
 ```
 
