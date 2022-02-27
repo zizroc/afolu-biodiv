@@ -52,12 +52,18 @@ country_code_map <- readr::read_csv("data/country_mapper.csv")
 
 
 ```{r}
-tmp <- country_code_map %>%
+historical_pathways <- country_code_map %>%
   dplyr::right_join(
-    hist_fao 
-  )
-
-
+    hist_fao, 
+    by = "fao_countrycode"
+  ) %>% 
+  dplyr::mutate(
+    diet_plan = "Hist-FAO", 
+    scenario = "historical", 
+    kt_yr_se = NA, 
+    target_year = NA
+  ) %>% 
+  dplyr::select(iso_alpha3, diet_plan, scenario, food_group, year, kt_yr, kt_yr_smoothed, diff1, diff2)
 ```
 
 
