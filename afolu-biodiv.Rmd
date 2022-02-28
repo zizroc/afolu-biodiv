@@ -9,12 +9,13 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Load libraries
+## Load libraries ----
 ```{r, message=FALSE}
 library(tidyverse)
 library(raster)
 library(sf)
 library(maps)
+library(rgdal)
 ```
 
 
@@ -34,7 +35,7 @@ NB: Should update this to use a newer method.
 borders_only <- readOGR(dsn = "data/world-administrative-boundaries", layer = "world-administrative-boundaries")
 ```
 
-## Pathways & historical data
+### Pathways & historical data
 Historical data from the FAO.
 Source: FAO.
 ```{r, show_col_types=FALSE}
@@ -44,13 +45,14 @@ hist_fao <- hist_fao %>%
    dplyr::rename(fao_countrycode = area_code)
 ```
 
-## Map country names to ISO codes
+### Map country names to ISO codes
 DF to map ISO3 codes to country names.
 ```{r}
 country_code_map <- readr::read_csv("data/country_mapper.csv")
 ```
 
-Reorganize the historical FAO data to make it more alike the projected pathways data frame.
+## Organize pathways data
+Rename and arrange historical FAO data columns to make it more alike the projected pathways data frame.
 ```{r}
 historical_pathways <- country_code_map %>%
   dplyr::right_join(
@@ -67,30 +69,38 @@ historical_pathways <- country_code_map %>%
 ```
 
 ## Crop and mask biodiversity raster
-Make a list of extant country iso3 codes.
+The global biodiversity raster must be mapped to countries. First make a list of extant country ISO3 codes.
 ```{r}
-country_iso3_codes <- borders_only@data$iso3[!is.na(borders_only@data$iso3)]
-country_iso3_codes <- as.character(country_iso3_codes[order(country_iso3_codes)])
-country_iso3_df <- data.frame(index = country_iso3_codes %>% dplyr::row_number(), 
-           iso3 = country_iso3_codes)
+country_iso3_codes <-
+  borders_only@data$iso3[!is.na(borders_only@data$iso3)]
+country_iso3_codes <-
+  as.character(country_iso3_codes[order(country_iso3_codes)])
+country_iso3_df <-
+  data.frame(index = country_iso3_codes %>% dplyr::row_number(),
+             iso3 = country_iso3_codes)
 ```
 
-Crop and then mask `biodiv_data` by individual country border polygons.
+Next, crop and then mask `biodiv_data` by individual country border polygons.
 ```{r}
 borders_only_sub <-
   borders_only[as.character(borders_only@data$iso3) %in% country_iso3_df$iso3,]
 ```
 
-Loop over iso3 codes to make a list of biodiveristy rasters for each country. (Bound to be a slicker way of doing this.)
+The spatial polygons data frame (SPDF) `borders_only_sub` contains data for only those countries that have corresponding ISO3 codes, excluding entities that are disputed or might be double-counted.
+
+Loop over iso3 codes to make a list of biodiveristy rasters for each country.
 ```{r}
 biodiv_country_rast <- list()
-for (country_iso3 in country_iso3_codes[1:10]) {
+for (country_iso3 in country_iso3_codes) {
   biodiv_sub <-
     crop(biodiv_data, extent(borders_only_sub[borders_only_sub$iso3 == country_iso3, ]))
   biodiv_country_rast[[country_iso3]] <-
     mask(biodiv_sub, borders_only_sub[borders_only_sub$iso3 == country_iso3, ])
 }
 ```
+
+
+`biodiv_country_rast` is a list of rasters geospatially located within country-level border polygon perimeters. Because this is a large object for the complete list of countries, make another list with pertinent information, including statistical moments of the masked raster values. This is a much lighter object.
 
 Extract some basic data (mean, sd, median, min, max) from each of these.
 ```{r}
@@ -121,6 +131,62 @@ get_raster_summary <- function(x) {
 biodiv_country_moments <-
   lapply(biodiv_country_rast, FUN = get_raster_summary)
 ```
+
+## Analysis
+Now that the data has been ordered, proceed to analytics. First, let's make a simple list of countries by median biodiversity.
+```{r}
+median_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][3]
+}
+mean_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][4]
+}
+
+median_tmp <- lapply(names(biodiv_country_moments), FUN = median_vals)
+mean_tmp <- lapply(names(biodiv_country_moments), FUN = mean_vals)
+
+biodiv_moments_df <- data.frame(
+  iso_alpha3 = names(biodiv_country_moments),
+  biodiv_median = unlist(median_tmp), 
+  biodiv_mean = unlist(mean_tmp)
+)
+
+rm(median_tmp, mean_tmp)
+```
+
+<!-- Next, let's simplify the pathways data by taking ensemble means of pathways across SSPs. -->
+<!-- ```{r} -->
+<!-- pathways_ssp_em <- pathways %>%  -->
+<!--   dplyr::group_by(iso_alpha3, diet_plan, food_group, year, target_year) %>%  -->
+<!--   dplyr::summarise(diff1_em = mean(diff1),  -->
+<!--                    diff1_mn = min(diff1),  -->
+<!--                    diff1_mx = max(diff1),  -->
+<!--                    .groups = "drop") -->
+<!-- ``` -->
+
+```{r}
+derdiff_df <- pathways %>%
+  dplyr::filter(diet_plan == "CNS-CFP" &
+                  food_group == "animal products" & target_year == 2050) %>% 
+  dplyr::select(iso_alpha3, kt_yr_fit)
+```
+
+
+```{r}
+biodiv_derdiff_df <- biodiv_moments_df %>% 
+  full_join(derdiff_df)
+```
+
+```{r}
+ggplot(biodiv_derdiff_df %>% 
+         drop_na(), 
+       aes(x = log(kt_yr_fit))) + 
+  geom_point(aes(y = biodiv_median), 
+             col = "blue") + 
+  geom_point(aes(y = biodiv_mean), 
+             col = "firebrick")
+```
+
 
 
 ```{r}
