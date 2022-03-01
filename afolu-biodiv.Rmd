@@ -154,39 +154,219 @@ biodiv_moments_df <- data.frame(
 rm(median_tmp, mean_tmp)
 ```
 
-<!-- Next, let's simplify the pathways data by taking ensemble means of pathways across SSPs. -->
-<!-- ```{r} -->
-<!-- pathways_ssp_em <- pathways %>%  -->
-<!--   dplyr::group_by(iso_alpha3, diet_plan, food_group, year, target_year) %>%  -->
-<!--   dplyr::summarise(diff1_em = mean(diff1),  -->
-<!--                    diff1_mn = min(diff1),  -->
-<!--                    diff1_mx = max(diff1),  -->
-<!--                    .groups = "drop") -->
-<!-- ``` -->
+### Find pathway ROC gaps
+We want to see the difference between transformation pathway and historical values.
+```{r}
+trans_pathways_moments <- pathways %>%
+  dplyr::group_by(iso_alpha3, diet_plan, scenario, food_group, target_year) %>%
+  dplyr::filter(!is.na(diff1)) %>%
+  dplyr::summarise(
+    diff1_ave = mean(diff1, na.rm = TRUE),
+    diff1_med = median(diff1, na.rm = TRUE),
+    diff1_sdv = sd(diff1, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
 
 ```{r}
-derdiff_df <- pathways %>%
+hist_pathways_moments <- historical_pathways %>%
+  dplyr::group_by(iso_alpha3, food_group)  %>%
+  dplyr::summarise(
+    hist_diff1_ave = mean(diff1, na.rm = TRUE),
+    hist_diff1_med = median(diff1, na.rm = TRUE),
+    hist_diff1_sdv = sd(diff1, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+Next, let's take differences (delta) between long-term averages of historical (FAO) and transformation pathways.
+```{r}
+delta_pathways_moments <- trans_pathways_moments %>%
+  dplyr::full_join(hist_pathways_moments, by = c("iso_alpha3", "food_group")) %>%
+  dplyr::mutate(
+    delta_diff1_ave = diff1_ave - hist_diff1_ave,
+    delta_diff1_med = diff1_med - hist_diff1_med
+  ) %>%
+  dplyr::select(
+    iso_alpha3,
+    diet_plan,
+    scenario,
+    food_group,
+    target_year,
+    delta_diff1_ave,
+    delta_diff1_med
+  )
+```
+
+Merge these data sets.
+```{r}
+pathways_biodiv_moments_df <- delta_pathways_moments %>%
+  dplyr::full_join(biodiv_moments_df, by = "iso_alpha3") %>%
+  dplyr::filter(!is.na(food_group))
+```
+
+
+Let's carry out a test to see what it looks like.
+```{r}
+test <- pathways_biodiv_moments_df %>%
   dplyr::filter(diet_plan == "CNS-CFP" &
-                  food_group == "animal products" & target_year == 2050) %>% 
-  dplyr::select(iso_alpha3, kt_yr_fit)
+                  scenario == "SSP3" &
+                  food_group == "plant products")
 ```
 
+Large-positive outliers in the deltas between transformation and FAO pathways:
+*IND 24026.28 (target_year = 2045) to 19937.48 (target_year = 2065)
+*NGA 6423.032 (2045) to 7037.927 (2055)
+*PAK 5236.188 (2065) to 6345.643 (2050)
+
+Large-negative outliers in the deltas between transformation and FAO pathways:
+*CHN -40496.5 (target_year = 2050) to -36018.513 (target_year = 2065)
+*USA -4618.142 (2050) to -4062.990 (2065)
+
+Filter these countries out for the test
+```{r}
+test <- test %>% 
+  dplyr::filter(!iso_alpha3 %in% c("CHN", "IND", "NGA", "PAK", "USA"))
+```
+
+Plot the test data
+```{r}
+ggplot(test %>% 
+         dplyr::filter(diet_plan == "CNS-CFP" & scenario == "SSP3" & food_group == "plant products" & target_year == 2050) %>% 
+         dplyr::filter(delta_diff1_ave >= 0), 
+       aes(x = delta_diff1_ave, 
+           y = biodiv_mean)) + 
+  geom_point(col = "darkblue") + 
+  geom_smooth(method = "lm") + 
+  theme_minimal() + 
+  labs(
+    title = "Increasing pathway gaps for high biodiversity countries", 
+    subtitle = "filters: CNS diet, SSP3 scenario, 2050 target year for plant products only",
+    caption = "IND, NGA & PAK omitted as high outliers", 
+    x = "Difference between transformation pathway ROC and FAO historical ROC (kt/yr)", 
+    y = "Mean biodiveristy index by country"
+  )
+```
+
+Pearson's correlation coefficient for the test data
+```{r}
+cor.test(test$delta_diff1_ave, test$biodiv_mean)
+```
+
+Let's examine correlations across all combinations. Start with a combination matrix.
+```{r}
+combination_matrix <- expand.grid(
+  diet_plan = c("CNS-CFP", "ELA-PHD", "FDA-SDP"),
+  scenario = c("SSP1", "SSP2", "SSP3", "SSP4", "SSP5"),
+  food_group = c("animal products", "fish & seafood", "plant products"),
+  target_year = seq(2045, 2065, by = 5)
+)
+
+combination_matrix <- combination_matrix %>% 
+  dplyr::mutate(index = 1:225) # the matrix is 225 rows long
+```
+
+These countries have inordinately large ROC gaps. Negative gaps, for the USA and CHN, are a consequence of the historical supply surplus in the US and likely future population drop in China. Positive gaps are due to India, Nigeria and Pakistan's dependence on food imports (low historical supply) and very high future demand from population growth.
+```{r}
+outlier_countries <- c("CHN", "IND", "NGA", "PAK", "USA")
+```
+
+First look at positive pathway ROC gaps (i.e., transformation pathway ROC is greater than historical ROC).
+```{r}
+for(index in 1:225) {
+  tmp0 <- combination_matrix[index, ]
+  tmp1 <- pathways_biodiv_moments_df %>% 
+    dplyr::filter(delta_diff1_ave >= 0) %>% 
+    dplyr::filter(
+      diet_plan == as.character(tmp0$diet_plan) &
+        scenario == as.character(tmp0$scenario) &
+        food_group == as.character(tmp0$food_group) &
+        target_year == as.double(tmp0$target_year)
+    )
+  tmp2 <- cor.test(tmp1$delta_diff1_ave, tmp1$biodiv_mean)
+  tmp3 <- data.frame(
+    index = index, 
+    teststat = tmp2$statistic,
+    df = tmp2$parameter, 
+    corr = tmp2$estimate, 
+    pval = tmp2$p.value
+  )
+  if(index == 1) {
+    pos_corr_tests <- tmp3
+  } else {
+    pos_corr_tests <- pos_corr_tests %>% 
+      dplyr::bind_rows(tmp3)
+  }
+}
+```
+
+Next, negative pathway ROC gaps (i.e., transformation ROC is less than historic ROC).
+```{r}
+for(index in 1:225) {
+  tmp0 <- combination_matrix[index, ]
+  tmp1 <- pathways_biodiv_moments_df %>% 
+    dplyr::filter(delta_diff1_ave < 0) %>% 
+    dplyr::filter(
+      diet_plan == as.character(tmp0$diet_plan) &
+        scenario == as.character(tmp0$scenario) &
+        food_group == as.character(tmp0$food_group) &
+        target_year == as.double(tmp0$target_year)
+    )
+  tmp2 <- cor.test(tmp1$delta_diff1_ave, tmp1$biodiv_mean)
+  tmp3 <- data.frame(
+    index = index, 
+    teststat = tmp2$statistic,
+    df = tmp2$parameter, 
+    corr = tmp2$estimate, 
+    pval = tmp2$p.value
+  )
+  if(index == 1) {
+    neg_corr_tests <- tmp3
+  } else {
+    neg_corr_tests <- neg_corr_tests %>% 
+      dplyr::bind_rows(tmp3)
+  }
+}
+```
+
+Use the p-value to filter significant correlation values.
+```{r}
+pos_corr_tests_filtered <- pos_corr_tests %>% 
+  dplyr::filter(pval <= 0.05) %>% 
+  dplyr::left_join(combination_matrix, by = "index") %>% 
+  dplyr::arrange(-corr)
+
+neg_corr_tests_filtered <- neg_corr_tests %>% 
+  dplyr::filter(pval <= 0.05) %>% 
+  dplyr::left_join(combination_matrix, by = "index") %>% 
+  dplyr::arrange(-corr)
+```
+
+There are just 5 cases (from `neg_corr_tests_filtered`) in which the correlation estimate was significant (p-value between 0.03 and 0.047), but all correlations are negative: there are special cases in the CNS and ELA diets in which more feasible shifts occur in high-biodiversity countries.
 
 ```{r}
-biodiv_derdiff_df <- biodiv_moments_df %>% 
-  full_join(derdiff_df)
-```
+p_corr <- ggplot(data = pos_corr_tests_filtered, 
+       mapping = aes(x = target_year, 
+                     y = corr)) + 
+  geom_point(aes(shape = food_group, 
+                 colour = food_group)) + 
+  theme_bw() + 
+  theme(
+    legend.title = element_blank(), 
+    legend.position = "top", 
+    axis.text.x = element_text(angle = 90, hjust = 0.5)
+  ) + 
+  labs(
+    title = "Food system up-shifts are less feasible for high biodiversity countries",
+    subtitle = "Correlation (p < 0.05) between mean biodiveristy index and food pathway gap",
+    x = "target year", 
+    y = "Pearson's correlation coefficient"
+  ) + 
+  facet_grid(diet_plan ~ scenario) 
 
-```{r}
-ggplot(biodiv_derdiff_df %>% 
-         drop_na(), 
-       aes(x = log(kt_yr_fit))) + 
-  geom_point(aes(y = biodiv_median), 
-             col = "blue") + 
-  geom_point(aes(y = biodiv_mean), 
-             col = "firebrick")
+p_corr
 ```
-
 
 
 ```{r}
