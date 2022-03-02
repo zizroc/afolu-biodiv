@@ -155,7 +155,7 @@ rm(median_tmp, mean_tmp)
 ```
 
 ### Find pathway ROC gaps
-We want to see the difference between transformation pathway and historical values.
+We want to see the difference between transformation pathway and historical values; so first transformation pathways...
 ```{r}
 trans_pathways_moments <- pathways %>%
   dplyr::group_by(iso_alpha3, diet_plan, scenario, food_group, target_year) %>%
@@ -168,7 +168,7 @@ trans_pathways_moments <- pathways %>%
   )
 ```
 
-
+...and then historical pathways.
 ```{r}
 hist_pathways_moments <- historical_pathways %>%
   dplyr::group_by(iso_alpha3, food_group)  %>%
@@ -203,10 +203,12 @@ Merge these data sets.
 ```{r}
 pathways_biodiv_moments_df <- delta_pathways_moments %>%
   dplyr::full_join(biodiv_moments_df, by = "iso_alpha3") %>%
-  dplyr::filter(!is.na(food_group))
+  tidyr::drop_na()
 ```
 
+`pathways_biodiv_moments_df` contains differences (deltas) between transformation and historical pathway means and medians, which I call "gaps".
 
+### Test of gaps
 Let's carry out a test to see what it looks like.
 ```{r}
 test <- pathways_biodiv_moments_df %>%
@@ -254,7 +256,8 @@ Pearson's correlation coefficient for the test data
 cor.test(test$delta_diff1_ave, test$biodiv_mean)
 ```
 
-Let's examine correlations across all combinations. Start with a combination matrix.
+### Across all pathways
+Pathways are defined by combinations of diets, SSP scenarios, food groups and target years. Let's examine correlations across all combinations. Start with a combination matrix.
 ```{r}
 combination_matrix <- expand.grid(
   diet_plan = c("CNS-CFP", "ELA-PHD", "FDA-SDP"),
@@ -346,91 +349,55 @@ neg_corr_tests_filtered <- neg_corr_tests %>%
 There are just 5 cases (from `neg_corr_tests_filtered`) in which the correlation estimate was significant (p-value between 0.03 and 0.047), but all correlations are negative: there are special cases in the CNS and ELA diets in which more feasible shifts occur in high-biodiversity countries.
 
 ```{r}
-p_corr <- ggplot(data = pos_corr_tests_filtered, 
-       mapping = aes(x = target_year, 
-                     y = corr)) + 
-  geom_point(aes(shape = food_group, 
-                 colour = food_group)) + 
-  theme_bw() + 
+colz <-
+  c(
+    "animal products" = "#F17EB8",
+    "fish & seafood" = "#489ED3",
+    "plant products" = "#EEAF35"
+  )
+labz <-
+  c("Animal Products", "Fish and Seafood", "Plant Products")
+
+p_corr <- ggplot(
+  data = pos_corr_tests_filtered %>%
+    dplyr::mutate(diet_plan = ifelse(
+      diet_plan == "ELA-PHD",
+      "ELA",
+      ifelse(diet_plan == "CNS-CFP",
+             "CNS",
+             "USDA")
+    )),
+  mapping = aes(x = target_year,
+                y = corr)
+) +
+  geom_point(aes(shape = food_group,
+                 colour = food_group), 
+             size = 2) +
+  scale_color_manual(labels = labz, 
+                     values = colz) +
+  scale_shape_manual(labels = labz, 
+                     values = c(15, 16, 17)) +
+  theme_bw() +
   theme(
-    legend.title = element_blank(), 
-    legend.position = "top", 
-    axis.text.x = element_text(angle = 90, hjust = 0.5)
-  ) + 
+    legend.title = element_blank(),
+    legend.position = "top",
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 0.5,
+      vjust = 0.5,
+      size = 7
+    )
+  ) +
   labs(
     title = "Food system up-shifts are less feasible for high biodiversity countries",
-    subtitle = "Correlation (p < 0.05) between mean biodiveristy index and food pathway gap",
-    x = "target year", 
+    subtitle = "Correlation (p < 0.05) between mean biodiveristy index and food shift feasibility gap",
+    x = "target year",
     y = "Pearson's correlation coefficient"
-  ) + 
-  facet_grid(diet_plan ~ scenario) 
+  ) +
+  facet_grid(diet_plan ~ scenario)
 
 p_corr
 ```
 
-
-```{r}
-tmp1 <- pathways %>%
-  dplyr::filter(
-    target_year == 2050 &
-      iso_alpha3 == "AFG" &
-      food_group == "animal products" &
-      scenario == "SSP1" & diet_plan == "CNS-CFP"
-  ) %>%
-  dplyr::pull(diff1) %>%
-  na.omit() 
-```
-
-
-```{r}
-tmp2 <- historical_pathways %>%
-  dplyr::filter(
-      iso_alpha3 == "AFG" &
-      food_group == "animal products"
-  ) %>%
-  dplyr::pull(diff1) %>%
-  na.omit() 
-```
-
-
-```{r}
-
-ggplot(
-  data = pathways %>%
-    dplyr::filter(
-      iso_alpha3 == "AFG" &
-        food_group == "plant products" &
-        diet_plan == "CNS-CFP" & 
-        scenario == "SSP3"
-    ),
-  aes(x = diff2)
-) +
-  geom_density(aes(fill = as.factor(target_year)), 
-               alpha = 0.5) + 
-  geom_density(data = historical_pathways %>%
-    dplyr::filter(
-      iso_alpha3 == "AFG" &
-        food_group == "plant products"), 
-               mapping = aes(x = diff2), 
-               alpha = 0.1)
-
-```
-
-
-
-```{r}
-
-```
-
-
-
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r, echo=FALSE}
-
-```
 
 
