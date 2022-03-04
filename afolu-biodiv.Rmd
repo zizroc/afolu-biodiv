@@ -141,14 +141,19 @@ median_vals <- function(x) {
 mean_vals <- function(x) {
   biodiv_country_moments[[x]][[2]][4]
 }
+sd_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][7]
+}
 
 median_tmp <- lapply(names(biodiv_country_moments), FUN = median_vals)
 mean_tmp <- lapply(names(biodiv_country_moments), FUN = mean_vals)
+sd_tmp <- lapply(names(biodiv_country_moments), FUN = sd_vals)
 
 biodiv_moments_df <- data.frame(
   iso_alpha3 = names(biodiv_country_moments),
   biodiv_median = unlist(median_tmp), 
-  biodiv_mean = unlist(mean_tmp)
+  biodiv_mean = unlist(mean_tmp), 
+  biodiv_sd = unlist(sd_tmp)
 )
 
 rm(median_tmp, mean_tmp)
@@ -250,6 +255,241 @@ ggplot(test %>%
     y = "Mean biodiveristy index by country"
   )
 ```
+
+```{r}
+ggplot(test %>% 
+         dplyr::filter(diet_plan == "CNS-CFP" & scenario == "SSP3" & food_group == "plant products" & target_year == 2050) %>% 
+         dplyr::filter(delta_diff1_ave >= 0), 
+       aes(x = log(delta_diff1_ave), 
+           y = biodiv_mean)) + 
+  geom_point(col = "darkblue") + 
+  geom_smooth(method = "lm") + 
+  theme_minimal()
+```
+
+
+- intensification or imports
+- make a new plot: for each point, what is its value in terms of 
+- find signatories to a UN biodiversity assessment
+- order of magnitude more difficult to meet food commitments than increase biodiversity
+
+- do the same hist distribution vs biodiversity
+- steepness of curves (general population growth, target date) how does the slope of the regression change as a function of target date
+- what countries does target date matter, what  countries doesn't it matter?
+- basket we want to know: high biodiversity, target date matters, rank these
+
+- 2 d coordinate system: how high is its biodiversity, how hard is it for country to meet it s food needs
+- make a conceptual diagram with a model country that epitomizes each of these quadrants 
+- PCR test to see what the variance around each term is
+
+Historical pathways and biodiversity
+```{r}
+test <- hist_pathways_moments %>% 
+  full_join(biodiv_moments_df, by = "iso_alpha3") %>% 
+  filter(!is.na(hist_diff1_ave) & !is.na(biodiv_median) & !is.na(iso_alpha3))
+
+```
+
+
+```{r}
+plant_prod_pos_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    pull(biodiv_mean)
+)
+animal_prod_pos_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
+    pull(biodiv_mean)
+)
+fish_prod_pos_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
+    pull(biodiv_mean)
+)
+
+plant_prod_neg_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
+    pull(biodiv_mean)
+)
+animal_prod_neg_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
+    pull(biodiv_mean)
+)
+fish_prod_neg_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
+    pull(biodiv_mean)
+)
+
+corval_labs_pos = c(
+  paste0(
+    "r = ",
+    round(plant_prod_pos_corr$estimate, 2),
+    " (p-value = ",
+    signif(plant_prod_pos_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(animal_prod_pos_corr$estimate, 2),
+    " (p-value = ",
+    signif(animal_prod_pos_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(fish_prod_pos_corr$estimate, 2),
+    " (p-value = ",
+    signif(fish_prod_pos_corr$p.value, 1),
+    ")"
+  )
+)
+corval_labs_neg = c(
+  paste0(
+    "r = ",
+    round(plant_prod_neg_corr$estimate, 2),
+    " (p-value = ",
+    signif(plant_prod_neg_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(animal_prod_neg_corr$estimate, 2),
+    " (p-value = ",
+    signif(animal_prod_neg_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(fish_prod_neg_corr$estimate, 2),
+    " (p-value = ",
+    signif(fish_prod_neg_corr$p.value, 1),
+    ")"
+  )
+)
+
+annotate_text <- data.frame(
+  food_group = c("plant products", "animal products", "fish & seafood"),
+  corval_labs_pos, 
+  corval_labs_neg
+)
+
+```
+
+
+```{r}
+p_pos <- ggplot(data = test %>% 
+         filter(hist_diff1_ave > 0), 
+       aes(x = hist_diff1_ave, 
+           y = biodiv_mean)) + 
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) + 
+  geom_errorbar(aes(xmin = hist_diff1_ave - hist_diff1_sdv, xmax = hist_diff1_ave + hist_diff1_sdv), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
+  geom_errorbar(aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
+  # geom_text(aes(label = iso_alpha3), 
+  #           alpha = 0.7, 
+  #           size = 3) + 
+  geom_smooth(colour = "firebrick", method = "lm") + 
+  geom_text(
+  data    = annotate_text,
+  mapping = aes(x = 1e2, y = 44, label = corval_labs_pos),
+  hjust   = 0.4,
+  vjust   = 0.9, 
+  size = 3
+) + 
+  theme_bw() + 
+  theme(
+    legend.position = "top", 
+    legend.title = element_blank()
+  ) + 
+  labs(
+    title = "High biodiveristy countries have experienced more rapid up-shifts in historical supply", 
+    subtitle = "Source: FAO",
+    x = "Average FAO historical ROC (kt/yr)", 
+    y = "Mean species richness by country"
+  ) + 
+  scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+              labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  facet_wrap(~ food_group)
+
+p_neg <- ggplot(data = test %>% 
+         filter(hist_diff1_ave < 0), 
+       aes(x = abs(hist_diff1_ave), 
+           y = biodiv_mean)) + 
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) + 
+  geom_errorbar(aes(xmin = hist_diff1_ave - hist_diff1_sdv, xmax = hist_diff1_ave + hist_diff1_sdv), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
+  geom_errorbar(aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
+  # geom_text(aes(label = iso_alpha3), 
+  #           alpha = 0.7, 
+  #           size = 3) + 
+  geom_smooth(colour = "firebrick", method = "lm") + 
+  geom_text(
+  data    = annotate_text,
+  mapping = aes(x = 10, y = 44, label = corval_labs_neg),
+  hjust   = 0.4,
+  vjust   = 0.9, 
+  size = 3
+) + 
+  theme_bw() + 
+  theme(
+    legend.position = "top", 
+    legend.title = element_blank()
+  ) + 
+  labs(
+    title = "Down-shifts in historical supply have no correlation with biodiversity", 
+    subtitle = "Source: FAO",
+    x = "Average FAO historical ROC (kt/yr)", 
+    y = "Mean species richness by country"
+  ) + 
+  scale_x_log10(breaks = scales::trans_breaks("log10", function(x){
+    tmp <- abs(x)
+    10^tmp
+  }),
+              labels = scales::trans_format("log10", scales::math_format(-10^.x))) +
+  facet_wrap(~ food_group)
+
+cowplot::plot_grid(p_pos, p_neg, ncol = 1)
+
+```
+
+```{r}
+cor.test(
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    pull(biodiv_mean)
+)
+```
+
 
 Pearson's correlation coefficient for the test data
 ```{r}
