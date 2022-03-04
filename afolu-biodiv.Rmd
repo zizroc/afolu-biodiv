@@ -21,11 +21,19 @@ library(rgdal)
 
 ## Load data
 ### Biodiversity
-Species richness for all species.
+Species richness for all species, and for critically endangered and vulnerable (CRENVU) species.
 Source: IUCN. (2022). IUCN Redlist database. <https://www.iucnredlist.org> Retrieved: 25/02/2022.
 ```{r}
-biodiv_data <- raster("data/Richness_all.tif")
+biodiv_data <- raster("data/Richness_all.tif") 
+crenvu_data <- raster("data/Richness_crenvu.tif")
 ```
+
+These countries are members of the [High Ambition Coalition](https://www.hacfornatureandpeople.org)
+Source: HAC. (2022). HAC Members list. <https://www.hacfornatureandpeople.org/hac-members> Retrieved: 4/3/2022.
+```{r}
+hac_countries_map <- readr::read_csv("data/High Ambition Coalition list - HAC_members_03-2022.csv")
+```
+
 
 ### Country political borders
 Shapefiles for country-level political boundaries (borders).
@@ -50,6 +58,7 @@ DF to map ISO3 codes to country names.
 ```{r}
 country_code_map <- readr::read_csv("data/country_mapper.csv")
 ```
+
 
 ## Organize pathways data
 Rename and arrange historical FAO data columns to make it more alike the projected pathways data frame.
@@ -231,57 +240,66 @@ Large-negative outliers in the deltas between transformation and FAO pathways:
 *CHN -40496.5 (target_year = 2050) to -36018.513 (target_year = 2065)
 *USA -4618.142 (2050) to -4062.990 (2065)
 
-Filter these countries out for the test
+HAC countries
 ```{r}
-test <- test %>% 
-  dplyr::filter(!iso_alpha3 %in% c("CHN", "IND", "NGA", "PAK", "USA"))
+hac_codes <- hac_countries_map %>% 
+               dplyr::pull(iso_alpha3)
 ```
+
 
 Plot the test data
 ```{r}
-ggplot(test %>% 
-         dplyr::filter(diet_plan == "CNS-CFP" & scenario == "SSP3" & food_group == "plant products" & target_year == 2050) %>% 
-         dplyr::filter(delta_diff1_ave >= 0), 
-       aes(x = delta_diff1_ave, 
-           y = biodiv_mean)) + 
-  geom_point(col = "darkblue") + 
-  geom_smooth(method = "lm") + 
-  theme_minimal() + 
+ggplot(
+  test %>%
+    dplyr::filter(
+      diet_plan == "CNS-CFP" &
+        scenario == "SSP3" &
+        food_group == "plant products" & target_year == 2050
+    ) %>%
+    dplyr::filter(delta_diff1_ave >= 0),
+  aes(x = delta_diff1_ave,
+      y = biodiv_mean)
+) +
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) + 
+  geom_smooth(method = "lm", colour = "firebrick") +
+  geom_point(data = test %>%
+    dplyr::filter(
+      diet_plan == "CNS-CFP" &
+        scenario == "SSP3" &
+        food_group == "plant products" & target_year == 2050
+    ) %>%
+    dplyr::filter(delta_diff1_ave >= 0) %>% 
+      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    aes(x = delta_diff1_ave,
+      y = biodiv_mean), 
+    size = 2) + 
+  geom_smooth(data = test %>%
+    dplyr::filter(
+      diet_plan == "CNS-CFP" &
+        scenario == "SSP3" &
+        food_group == "plant products" & target_year == 2050
+    ) %>%
+    dplyr::filter(delta_diff1_ave >= 0) %>% 
+      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    mapping = aes(x = delta_diff1_ave,
+      y = biodiv_mean), 
+    method = "lm", colour = "black") + 
+  theme_bw() +
   labs(
-    title = "Increasing pathway gaps for high biodiversity countries", 
+    title = "Increasing pathway gaps for high biodiversity countries",
     subtitle = "filters: CNS diet, SSP3 scenario, 2050 target year for plant products only",
-    caption = "IND, NGA & PAK omitted as high outliers", 
-    x = "Difference between transformation pathway ROC and FAO historical ROC (kt/yr)", 
+    x = "Difference between transformation pathway ROC and FAO historical ROC (kt/yr)",
     y = "Mean biodiveristy index by country"
+  ) +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x)
+      10 ^ x),
+    labels = scales::trans_format("log10", scales::math_format(10 ^
+                                                                 .x))
   )
 ```
 
-```{r}
-ggplot(test %>% 
-         dplyr::filter(diet_plan == "CNS-CFP" & scenario == "SSP3" & food_group == "plant products" & target_year == 2050) %>% 
-         dplyr::filter(delta_diff1_ave >= 0), 
-       aes(x = log(delta_diff1_ave), 
-           y = biodiv_mean)) + 
-  geom_point(col = "darkblue") + 
-  geom_smooth(method = "lm") + 
-  theme_minimal()
-```
-
-
-- intensification or imports
-- make a new plot: for each point, what is its value in terms of 
-- find signatories to a UN biodiversity assessment
-- order of magnitude more difficult to meet food commitments than increase biodiversity
-
-- do the same hist distribution vs biodiversity
-- steepness of curves (general population growth, target date) how does the slope of the regression change as a function of target date
-- what countries does target date matter, what  countries doesn't it matter?
-- basket we want to know: high biodiversity, target date matters, rank these
-
-- 2 d coordinate system: how high is its biodiversity, how hard is it for country to meet it s food needs
-- make a conceptual diagram with a model country that epitomizes each of these quadrants 
-- PCR test to see what the variance around each term is
-
+### Look at historical ROCs
 Historical pathways and biodiversity
 ```{r}
 test <- hist_pathways_moments %>% 
@@ -290,7 +308,7 @@ test <- hist_pathways_moments %>%
 
 ```
 
-
+Make some annotation label dfs to show correlation coefficients on the plot facets.
 ```{r}
 plant_prod_pos_corr <- cor.test(
   test %>% 
@@ -400,83 +418,129 @@ annotate_text <- data.frame(
   corval_labs_pos, 
   corval_labs_neg
 )
+```
 
+Plot the historical data.
+```{r}
+p_pos <- ggplot(data = test %>%
+                  filter(hist_diff1_ave > 0),
+                aes(x = hist_diff1_ave,
+                    y = biodiv_mean)) +
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) +
+  geom_errorbar(
+    aes(
+      xmin = hist_diff1_ave - hist_diff1_sdv,
+      xmax = hist_diff1_ave + hist_diff1_sdv
+    ),
+    colour = scales::muted("blue"),
+    width = .2,
+    alpha = 0.5
+  ) +
+  geom_errorbar(
+    aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
+    colour = scales::muted("blue"),
+    width = .2,
+    alpha = 0.5
+  ) +
+  # geom_text(aes(label = iso_alpha3),
+  #           alpha = 0.7,
+  #           size = 3) +
+  geom_smooth(colour = "firebrick", method = "lm") +
+  geom_text(
+    data    = annotate_text,
+    mapping = aes(x = 1e2, y = 44, label = corval_labs_pos),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) +
+  theme_bw() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  labs(
+    title = "High biodiveristy countries have experienced more rapid up-shifts in historical supply",
+    subtitle = "Source: FAO",
+    x = "Average FAO historical ROC (kt/yr)",
+    y = "Mean species richness by country"
+  ) +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x)
+      10 ^ x),
+    labels = scales::trans_format("log10", scales::math_format(10 ^
+                                                                 .x))
+  ) +
+  facet_wrap( ~ food_group)
+
+p_neg <- ggplot(data = test %>%
+                  filter(hist_diff1_ave < 0),
+                aes(x = abs(hist_diff1_ave),
+                    y = biodiv_mean)) +
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) +
+  geom_errorbar(
+    aes(
+      xmin = hist_diff1_ave - hist_diff1_sdv,
+      xmax = hist_diff1_ave + hist_diff1_sdv
+    ),
+    colour = scales::muted("blue"),
+    width = .2,
+    alpha = 0.5
+  ) +
+  geom_errorbar(
+    aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
+    colour = scales::muted("blue"),
+    width = .2,
+    alpha = 0.5
+  ) +
+  # geom_text(aes(label = iso_alpha3),
+  #           alpha = 0.7,
+  #           size = 3) +
+  geom_smooth(colour = "firebrick", method = "lm") +
+  geom_text(
+    data    = annotate_text,
+    mapping = aes(x = 10, y = 44, label = corval_labs_neg),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) +
+  theme_bw() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  labs(
+    title = "Down-shifts in historical supply have no correlation with biodiversity",
+    subtitle = "Source: FAO",
+    x = "Average FAO historical ROC (kt/yr)",
+    y = "Mean species richness by country"
+  ) +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x) {
+      tmp <- abs(x)
+      10 ^ tmp
+    }),
+    labels = scales::trans_format("log10", scales::math_format(-10 ^
+                                                                 .x))
+  ) +
+  facet_wrap( ~ food_group)
 ```
 
 
 ```{r}
-p_pos <- ggplot(data = test %>% 
-         filter(hist_diff1_ave > 0), 
-       aes(x = hist_diff1_ave, 
-           y = biodiv_mean)) + 
-  geom_point(colour = scales::muted("blue"), alpha = 0.5) + 
-  geom_errorbar(aes(xmin = hist_diff1_ave - hist_diff1_sdv, xmax = hist_diff1_ave + hist_diff1_sdv), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
-  geom_errorbar(aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
-  # geom_text(aes(label = iso_alpha3), 
-  #           alpha = 0.7, 
-  #           size = 3) + 
-  geom_smooth(colour = "firebrick", method = "lm") + 
-  geom_text(
-  data    = annotate_text,
-  mapping = aes(x = 1e2, y = 44, label = corval_labs_pos),
-  hjust   = 0.4,
-  vjust   = 0.9, 
-  size = 3
-) + 
-  theme_bw() + 
-  theme(
-    legend.position = "top", 
-    legend.title = element_blank()
-  ) + 
-  labs(
-    title = "High biodiveristy countries have experienced more rapid up-shifts in historical supply", 
-    subtitle = "Source: FAO",
-    x = "Average FAO historical ROC (kt/yr)", 
-    y = "Mean species richness by country"
-  ) + 
-  scale_x_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
-              labels = scales::trans_format("log10", scales::math_format(10^.x))) +
-  facet_wrap(~ food_group)
-
-p_neg <- ggplot(data = test %>% 
-         filter(hist_diff1_ave < 0), 
-       aes(x = abs(hist_diff1_ave), 
-           y = biodiv_mean)) + 
-  geom_point(colour = scales::muted("blue"), alpha = 0.5) + 
-  geom_errorbar(aes(xmin = hist_diff1_ave - hist_diff1_sdv, xmax = hist_diff1_ave + hist_diff1_sdv), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
-  geom_errorbar(aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd), colour = scales::muted("blue"), width=.2, alpha = 0.5) + 
-  # geom_text(aes(label = iso_alpha3), 
-  #           alpha = 0.7, 
-  #           size = 3) + 
-  geom_smooth(colour = "firebrick", method = "lm") + 
-  geom_text(
-  data    = annotate_text,
-  mapping = aes(x = 10, y = 44, label = corval_labs_neg),
-  hjust   = 0.4,
-  vjust   = 0.9, 
-  size = 3
-) + 
-  theme_bw() + 
-  theme(
-    legend.position = "top", 
-    legend.title = element_blank()
-  ) + 
-  labs(
-    title = "Down-shifts in historical supply have no correlation with biodiversity", 
-    subtitle = "Source: FAO",
-    x = "Average FAO historical ROC (kt/yr)", 
-    y = "Mean species richness by country"
-  ) + 
-  scale_x_log10(breaks = scales::trans_breaks("log10", function(x){
-    tmp <- abs(x)
-    10^tmp
-  }),
-              labels = scales::trans_format("log10", scales::math_format(-10^.x))) +
-  facet_wrap(~ food_group)
-
 cowplot::plot_grid(p_pos, p_neg, ncol = 1)
-
 ```
+
+
+- intensification or imports
+- find signatories to a UN biodiversity assessment
+- order of magnitude more difficult to meet food commitments than increase biodiversity
+
+- steepness of curves (general population growth, target date) how does the slope of the regression change as a function of target date
+- what countries does target date matter, what  countries doesn't it matter?
+- basket we want to know: high biodiversity, target date matters, rank these
+
+- 2 d coordinate system: how high is its biodiversity, how hard is it for country to meet it s food needs
+- make a conceptual diagram with a model country that epitomizes each of these quadrants 
+- PCR test to see what the variance around each term is
+
+
+
 
 ```{r}
 cor.test(
