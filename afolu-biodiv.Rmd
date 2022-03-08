@@ -24,7 +24,7 @@ library(rgdal)
 Species richness for all species, and for critically endangered and vulnerable (CRENVU) species.
 Source: IUCN. (2022). IUCN Redlist database. <https://www.iucnredlist.org> Retrieved: 25/02/2022.
 ```{r}
-biodiv_data <- raster("data/Richness_all.tif") 
+speciesrichness_data <- raster("data/Richness_all.tif") 
 crenvu_data <- raster("data/Richness_crenvu.tif")
 ```
 
@@ -97,14 +97,28 @@ borders_only_sub <-
 
 The spatial polygons data frame (SPDF) `borders_only_sub` contains data for only those countries that have corresponding ISO3 codes, excluding entities that are disputed or might be double-counted.
 
+What proxy are we using for biodiversity? If it is species richness, use `speciesrichness_data`. If it is the number of species that are critically endangered and vulnerable, use `crenvu_data`.
+```{r}
+biodiv_data <- crenvu_data
+
+# used for ease of making plot labels below
+if(identical(raster::values(biodiv_data), raster::values(crenvu_data))) {
+  biodiv_index = "critically endangered & vulnerable species"
+} else {
+  biodiv_index = "species richness"
+}
+
+```
+
+
 Loop over iso3 codes to make a list of biodiveristy rasters for each country.
 ```{r}
 biodiv_country_rast <- list()
 for (country_iso3 in country_iso3_codes) {
   biodiv_sub <-
-    crop(biodiv_data, extent(borders_only_sub[borders_only_sub$iso3 == country_iso3, ]))
+    crop(biodiv_data, extent(borders_only_sub[borders_only_sub$iso3 == country_iso3,]))
   biodiv_country_rast[[country_iso3]] <-
-    mask(biodiv_sub, borders_only_sub[borders_only_sub$iso3 == country_iso3, ])
+    mask(biodiv_sub, borders_only_sub[borders_only_sub$iso3 == country_iso3,])
 }
 ```
 
@@ -260,7 +274,7 @@ ggplot(
   aes(x = delta_diff1_ave,
       y = biodiv_mean)
 ) +
-  geom_point(colour = scales::muted("blue"), alpha = 0.5) + 
+  geom_point(colour = scales::muted("firebrick"), alpha = 0.5) + 
   geom_smooth(method = "lm", colour = "firebrick") +
   geom_point(data = test %>%
     dplyr::filter(
@@ -272,6 +286,7 @@ ggplot(
       dplyr::filter(iso_alpha3 %in% hac_codes), 
     aes(x = delta_diff1_ave,
       y = biodiv_mean), 
+    colour = "blue",
     size = 2, 
     shape = 2) + 
   geom_smooth(data = test %>%
@@ -290,7 +305,7 @@ ggplot(
     title = "Increasing pathway gaps for high biodiversity countries",
     subtitle = "filters: CNS diet, SSP3 scenario, 2050 target year for plant products only",
     x = "Difference between transformation pathway ROC and FAO historical ROC (kt/yr)",
-    y = "Mean biodiveristy index by country"
+    y = biodiv_index
   ) +
   scale_x_log10(
     breaks = scales::trans_breaks("log10", function(x)
@@ -427,30 +442,23 @@ p_pos0 <- ggplot(data = test %>%
                   filter(hist_diff1_ave > 0),
                 aes(x = hist_diff1_ave,
                     y = biodiv_mean)) +
-  geom_point(colour = scales::muted("blue"), alpha = 0.5) +
+  geom_point(colour = scales::muted("firebrick"), alpha = 0.5) +
   geom_errorbar(
     aes(
       xmin = hist_diff1_ave - hist_diff1_sdv,
       xmax = hist_diff1_ave + hist_diff1_sdv
     ),
-    colour = scales::muted("blue"),
+    colour = scales::muted("firebrick"),
     width = .2,
     alpha = 0.5
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
-    colour = scales::muted("blue"),
+    colour = scales::muted("firebrick"),
     width = .2,
     alpha = 0.5
   ) +
-  geom_smooth(colour = "firebrick", method = "lm") +
-  geom_text(
-    data    = annotate_text,
-    mapping = aes(x = 1e2, y = 44, label = corval_labs_pos),
-    hjust   = 0.4,
-    vjust   = 0.9,
-    size = 3
-  ) +
+  geom_smooth(colour = "black", method = "lm") +
   theme_bw() +
   theme(legend.position = "top",
         legend.title = element_blank()) +
@@ -458,7 +466,7 @@ p_pos0 <- ggplot(data = test %>%
     title = "High biodiveristy countries have experienced more rapid up-shifts in historical supply",
     subtitle = "Source: FAO",
     x = "Average FAO historical ROC (kt/yr)",
-    y = "Mean species richness by country"
+    y = biodiv_index
   ) +
   scale_x_log10(
     breaks = scales::trans_breaks("log10", function(x)
@@ -467,36 +475,36 @@ p_pos0 <- ggplot(data = test %>%
                                                                  .x))
   )
 p_pos <- p_pos0 +
+  geom_text(
+    data    = annotate_text,
+    mapping = aes(x = 1e2, y = 44, label = corval_labs_pos),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) +
   facet_wrap( ~ food_group)
 
 p_neg0 <- ggplot(data = test %>%
                   filter(hist_diff1_ave < 0),
                 aes(x = abs(hist_diff1_ave),
                     y = biodiv_mean)) +
-  geom_point(colour = scales::muted("blue"), alpha = 0.5) +
+  geom_point(colour = scales::muted("firebrick"), alpha = 0.5) +
   geom_errorbar(
     aes(
       xmin = hist_diff1_ave - hist_diff1_sdv,
       xmax = hist_diff1_ave + hist_diff1_sdv
     ),
-    colour = scales::muted("blue"),
+    colour = scales::muted("firebrick"),
     width = .2,
     alpha = 0.5
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
-    colour = scales::muted("blue"),
+    colour = scales::muted("firebrick"),
     width = .2,
     alpha = 0.5
   ) +
-  geom_smooth(colour = "firebrick", method = "lm") +
-  geom_text(
-    data    = annotate_text,
-    mapping = aes(x = 10, y = 44, label = corval_labs_neg),
-    hjust   = 0.4,
-    vjust   = 0.9,
-    size = 3
-  ) +
+  geom_smooth(colour = "black", method = "lm") +
   theme_bw() +
   theme(legend.position = "top",
         legend.title = element_blank()) +
@@ -504,7 +512,7 @@ p_neg0 <- ggplot(data = test %>%
     title = "Down-shifts in historical supply have no correlation with biodiversity",
     subtitle = "Source: FAO",
     x = "Average FAO historical ROC (kt/yr)",
-    y = "Mean species richness by country"
+    y = biodiv_index
   ) +
   scale_x_log10(
     breaks = scales::trans_breaks("log10", function(x) {
@@ -515,6 +523,13 @@ p_neg0 <- ggplot(data = test %>%
                                                                  .x))
   )
 p_neg <- p_neg0 +
+  geom_text(
+    data    = annotate_text,
+    mapping = aes(x = 10, y = 44, label = corval_labs_neg),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) +
   facet_wrap( ~ food_group)
 ```
 
@@ -527,53 +542,187 @@ This shows that large increases in the ROC of production (up-shifts) are more co
 
 Is this different for countries that have signed up to the HAC pledge?
 ```{r}
+test <- test %>% 
+  dplyr::filter(iso_alpha3 %in% hac_codes)
+```
+
+Run the correlations again.
+```{r}
+plant_prod_pos_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    pull(biodiv_mean)
+)
+animal_prod_pos_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
+    pull(biodiv_mean)
+)
+fish_prod_pos_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
+    pull(biodiv_mean)
+)
+
+plant_prod_neg_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
+    pull(biodiv_mean)
+)
+animal_prod_neg_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
+    pull(biodiv_mean)
+)
+fish_prod_neg_corr <- cor.test(
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  test %>% 
+    filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
+    pull(biodiv_mean)
+)
+
+corval_labs_pos = c(
+  paste0(
+    "r = ",
+    round(plant_prod_pos_corr$estimate, 2),
+    " (p-value = ",
+    signif(plant_prod_pos_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(animal_prod_pos_corr$estimate, 2),
+    " (p-value = ",
+    signif(animal_prod_pos_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(fish_prod_pos_corr$estimate, 2),
+    " (p-value = ",
+    signif(fish_prod_pos_corr$p.value, 1),
+    ")"
+  )
+)
+corval_labs_neg = c(
+  paste0(
+    "r = ",
+    round(plant_prod_neg_corr$estimate, 2),
+    " (p-value = ",
+    signif(plant_prod_neg_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(animal_prod_neg_corr$estimate, 2),
+    " (p-value = ",
+    signif(animal_prod_neg_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(fish_prod_neg_corr$estimate, 2),
+    " (p-value = ",
+    signif(fish_prod_neg_corr$p.value, 1),
+    ")"
+  )
+)
+
+annotate_text <- data.frame(
+  food_group = c("plant products", "animal products", "fish & seafood"),
+  corval_labs_pos, 
+  corval_labs_neg
+)
+```
+
+Blue triangle-shaped points are over-plotted to represent HAC signatories.
+```{r}
 p_pos1 <- p_pos0 + 
  geom_point(data = test %>%
-    dplyr::filter(hist_diff1_ave > 0) %>% 
-      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    dplyr::filter(hist_diff1_ave > 0), 
     aes(x = hist_diff1_ave,
       y = biodiv_mean), 
     size = 2, 
-    shape = 2) + 
+    shape = 2, 
+    colour = "blue") + 
   geom_smooth(data = test %>%
-    dplyr::filter(hist_diff1_ave > 0) %>% 
-      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    dplyr::filter(hist_diff1_ave > 0), 
     mapping = aes(x = hist_diff1_ave,
       y = biodiv_mean), 
-    method = "lm", colour = "blue", linetype = 2) + 
+    method = "lm", colour = "black", linetype = 2) +
+  geom_text(
+    data    = annotate_text,
+    mapping = aes(x = 1e2, y = 44, label = corval_labs_pos),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) + 
   facet_wrap(~ food_group)
 
 p_neg1 <- p_neg0 + 
  geom_point(data = test %>%
-    dplyr::filter(hist_diff1_ave < 0) %>% 
-      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    dplyr::filter(hist_diff1_ave < 0), 
     aes(x = abs(hist_diff1_ave),
       y = biodiv_mean), 
     size = 2, 
-    shape = 2) + 
+    shape = 2, 
+    colour = "blue") + 
   geom_smooth(data = test %>%
-    dplyr::filter(hist_diff1_ave < 0) %>% 
-      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    dplyr::filter(hist_diff1_ave < 0), 
     mapping = aes(
       x = abs(hist_diff1_ave),
       y = biodiv_mean), 
-    method = "lm", colour = "blue", linetype = 2) + 
+    method = "lm", colour = "black", linetype = 2) +
+  geom_text(
+    data    = annotate_text,
+    mapping = aes(x = 1e2, y = 44, label = corval_labs_pos),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) + 
   facet_wrap(~ food_group)
 ```
 
-The over-plotted open triangles correspond to countries that are HAC signatories. The others are not. The dashed blue line is the linear fit to the HAC countries; the red line is to all countries.
+The over-plotted open triangles correspond to countries that are HAC signatories. The others are not. The dashed line is the linear fit to the HAC countries; the solid line is to all countries.
 ```{r}
 cowplot::plot_grid(p_pos1, p_neg1, ncol = 1)
 ```
 
-The correlation with up-shifts appears to weaken or go away; it's unchanged for down-shifts.
+The correlation with up-shifts appears to go away entirely; it's still uncorrelated for down-shifts.
+
 
 ### Variance of results
 #### ANOVA
+How much does food group, diet plan and target year impact the outcome of delta_diff1_med?
+
+
 Food group and diet plan are most significant. 
 ```{r}
 dat_tmp <- pathways_biodiv_moments_df %>% 
-  dplyr::select(-delta_diff1_med, -biodiv_median, -biodiv_mean, -biodiv_sd) %>% 
+  dplyr::select(-delta_diff1_med, -biodiv_median, -biodiv_sd) %>% 
   dplyr::filter(delta_diff1_ave > 0)
 # %>% 
 #   dplyr::filter(iso_alpha3 == "AFG") 
@@ -583,12 +732,14 @@ dat_tmp$scenario <- factor(dat_tmp$scenario, levels = c("SSP1","SSP2","SSP3","SS
 dat_tmp$food_group <- factor(dat_tmp$food_group, levels = c("animal products", "fish & seafood", "plant products"))
 dat_tmp$target_year <- factor(dat_tmp$target_year, levels = c(2045, 2050, 2055, 2060, 2065))
 
-# anova_tmp <- aov(delta_diff1_ave ~ diet_plan + scenario + food_group + target_year, data = dat_tmp)
-anova_tmp <- aov(delta_diff1_ave ~ target_year, data = dat_tmp)
+anova_tmp <- aov(biodiv_mean ~ delta_diff1_ave + diet_plan + scenario + food_group + target_year, data = dat_tmp)
+# anova_tmp <- aov(biodiv_mean ~ delta_diff1_ave*diet_plan*scenario*target_year, data = dat_tmp)
 
 anova_results <- summary(anova_tmp)
 anova_results
 ```
+
+TODO Figure out why the following is breaking.
 
 For what countries is target year even significant?
 ```{r}
@@ -596,18 +747,22 @@ anova_results_df <- data.frame(iso_alpha3 = NA, pval = NA)
 countries <- pathways_biodiv_moments_df %>% distinct(iso_alpha3) %>% pull(iso_alpha3)
 for(iso in countries) {
   dat_tmp <- pathways_biodiv_moments_df %>% 
-  dplyr::select(-delta_diff1_med, -biodiv_median, -biodiv_mean, -biodiv_sd) %>% 
-  dplyr::filter(delta_diff1_ave < 0) %>% 
-  dplyr::filter(iso_alpha3 == iso)
+  dplyr::select(-delta_diff1_med, -biodiv_median, -biodiv_sd) %>% 
+  dplyr::filter(delta_diff1_ave > 0) %>% 
+  dplyr::filter(iso_alpha3 == iso) %>% 
+  dplyr::mutate(target_year = as.factor(target_year)) %>% 
+  tidyr::drop_na()
   
-  if(length(dat_tmp$target_year) == 0) next
+  # if(length(dat_tmp$target_year) == 0) next
   
-  dat_tmp$target_year <- factor(dat_tmp$target_year, levels = c(2045, 2050, 2055, 2060, 2065))
-  anova_tmp <- aov(delta_diff1_ave ~ target_year, data = dat_tmp)
+  # dat_tmp$target_year <- factor(dat_tmp$target_year, levels = c(2045, 2050, 2055, 2060, 2065))
+    # dat_tmp$target_year <- as.factor(dat_tmp$target_year)
+  anova_tmp <- aov(biodiv_mean ~ delta_diff1_ave + diet_plan + scenario + food_group + target_year, data = dat_tmp)
   anova_results <- summary(anova_tmp)
   
-  if(!is.na(unlist(anova_results)[9])) {
-     pval_tmp <- unlist(anova_results)[9]
+  if(!is.na(unlist(anova_results)[29])) {
+     pval_tmp <- unlist(anova_results)[29]
+     names(pval_tmp) <- c()
   } else {
     pval_tmp <- NA
   }
@@ -621,54 +776,54 @@ for(iso in countries) {
 rownames(anova_results_df) <- c()
 
 anova_results_df <- anova_results_df %>% 
-  tidyr::drop_na() %>% 
+  tidyr::drop_na(iso_alpha3) %>% 
   dplyr::arrange(pval)
-
 ```
 
+Which countries show significant results?
 ```{r}
 anova_results_df %>%
   filter(pval <= 0.05)
 ```
 
 
-#### PCA test
-Recode character columns as numeric.
-```{r}
-diet_plans <- data.frame(
-  diet_plan = c("CNS-CFP","ELA-PHD","FDA-SDP"), 
-  ndiets = c(1,2,3)
-)
-food_groups <- data.frame(
-  food_group = c("animal products", "fish & seafood", "plant products"), 
-  nfoods = c(1,2,3)
-)
-ssp_scenarios <- data.frame(
-  scenario = c("SSP1","SSP2","SSP3","SSP4","SSP5"), 
-  nscen = c(1,2,3,4,5)
-)
-```
+<!-- #### PCA test -->
+<!-- Recode character columns as numeric. -->
+<!-- ```{r} -->
+<!-- diet_plans <- data.frame( -->
+<!--   diet_plan = c("CNS-CFP","ELA-PHD","FDA-SDP"),  -->
+<!--   ndiets = c(1,2,3) -->
+<!-- ) -->
+<!-- food_groups <- data.frame( -->
+<!--   food_group = c("animal products", "fish & seafood", "plant products"),  -->
+<!--   nfoods = c(1,2,3) -->
+<!-- ) -->
+<!-- ssp_scenarios <- data.frame( -->
+<!--   scenario = c("SSP1","SSP2","SSP3","SSP4","SSP5"),  -->
+<!--   nscen = c(1,2,3,4,5) -->
+<!-- ) -->
+<!-- ``` -->
 
-```{r}
-recoded_pathways_df <- pathways_biodiv_moments_df %>% 
-  dplyr::left_join(diet_plans, by = "diet_plan") %>% 
-  dplyr::left_join(food_groups, by = "food_group") %>% 
-  dplyr::left_join(ssp_scenarios, by = "scenario") %>% 
-  dplyr::select(-diet_plan, -scenario, -food_group, -delta_diff1_med, -biodiv_median, -biodiv_mean, -biodiv_sd)
-```
+<!-- ```{r} -->
+<!-- recoded_pathways_df <- pathways_biodiv_moments_df %>%  -->
+<!--   dplyr::left_join(diet_plans, by = "diet_plan") %>%  -->
+<!--   dplyr::left_join(food_groups, by = "food_group") %>%  -->
+<!--   dplyr::left_join(ssp_scenarios, by = "scenario") %>%  -->
+<!--   dplyr::select(-diet_plan, -scenario, -food_group, -delta_diff1_med, -biodiv_median, -biodiv_sd) -->
+<!-- ``` -->
 
-```{r}
-tmp <- recoded_pathways_df %>% 
-  dplyr::filter(iso_alpha3 == "AFG") %>% 
-  dplyr::select(-iso_alpha3)
-```
+<!-- ```{r} -->
+<!-- tmp <- recoded_pathways_df %>%  -->
+<!--   dplyr::filter(iso_alpha3 == "AFG") %>%  -->
+<!--   dplyr::select(-iso_alpha3) -->
+<!-- ``` -->
 
-Put this aside for the moment. It's not necessary.
-```{r}
-# pca_tmp <- prcomp(tmp, center = TRUE, scale. = TRUE)
-# pca_tmp
-# summary(pca_tmp)
-```
+<!-- Put this aside for the moment. It's not necessary. -->
+<!-- ```{r} -->
+<!-- pca_tmp <- prcomp(recoded_pathways_df[,c(2,3,4,5,6,7)], center = TRUE, scale. = TRUE) -->
+<!-- pca_tmp -->
+<!-- summary(pca_tmp) -->
+<!-- ``` -->
 
 
 - intensification or imports
@@ -683,6 +838,139 @@ Put this aside for the moment. It's not necessary.
 - PCR test to see what the variance around each term is
 
 ### Dependence of slopes with target year
+```{r}
+pathways_biodiv_moments_em <- pathways_biodiv_moments_df %>% 
+  dplyr::group_by(iso_alpha3, diet_plan, food_group, target_year) %>% 
+  dplyr::summarise(delta_diff1_em = mean(delta_diff1_ave, na.rm = TRUE), 
+                   delta_diff1_mn = min(delta_diff1_ave, na.rm = TRUE), 
+                   delta_diff1_mx = max(delta_diff1_ave, na.rm = TRUE), 
+                   biodiv_em = mean(biodiv_mean, na.rm = TRUE), 
+                   biodiv_mn = biodiv_em - mean(biodiv_sd, na.rm = TRUE), 
+                   biodiv_mx = biodiv_em + mean(biodiv_sd, na.rm = TRUE), 
+                   .groups = "drop")
+```
+
+```{r}
+p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>%
+         dplyr::filter(delta_diff1_em > 0) %>% 
+           dplyr::filter(diet_plan == "FDA-USD"),
+       aes(x = delta_diff1_em,
+           y = biodiv_em)) +
+  geom_vline(xintercept = 0, alpha = 0.9) +
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) +
+  geom_errorbar(
+    aes(xmin = delta_diff1_mn,
+        xmax = delta_diff1_mx),
+    colour = scales::muted("blue"),
+    width = .2,
+    alpha = 0.5
+  ) +
+  geom_errorbar(
+    aes(ymin = biodiv_mn,
+        ymax = biodiv_mx),
+    colour = scales::muted("blue"),
+    width = .2,
+    alpha = 0.5
+  ) +
+  geom_smooth(colour = "firebrick", method = "lm") + 
+  theme_bw() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  labs(title = "Up-shifts in pathway gap with biodiversity",
+       x = "Average FAO historical ROC (kt/yr)",
+       y = "Mean species richness by country") +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x)
+      10 ^ x),
+    labels = scales::trans_format("log10", scales::math_format(10 ^ .x))
+  )
+```
+
+Plot the result
+```{r}
+p_path_pos <- p_path_pos0 +
+  facet_wrap(food_group ~ target_year, ncol = 5)
+```
+
+How do the slopes of the regression lines change as a function of target year?
+```{r}
+p_path_pos_dat <- ggplot_build(p_path_pos)
+```
+
+```{r}
+pathways_fit_df <- p_path_pos_dat$data[[5]]
+slopes_by_target_year <- pathways_fit_df %>%
+  dplyr::group_by(PANEL) %>%
+  dplyr::mutate(dx = x - lag(x, 1),
+                dy = y - lag(y, 1)) %>%
+  dplyr::summarise(dx = mean(dx, na.rm = TRUE),
+                   dy = mean(dy, na.rm = TRUE)) %>%
+  dplyr::mutate(slope = dy / dx,
+                target_year = ifelse(PANEL == 1, 2045,
+                                     ifelse(
+                                       PANEL == 2, 2050,
+                                       ifelse(PANEL == 3, 2055,
+                                              ifelse(PANEL == 4, 2060,
+                                                     2065))
+                                     ))) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(target_year, slope)
+```
+
+Plotting this roughly shows that the slope stays pretty constant until 2055, after which it drops.
+```{r}
+ggplot(data = slopes_by_target_year, 
+       aes(x = target_year, 
+           y = slope)) + 
+  geom_line() + 
+  theme_minimal() + 
+  labs(
+    x = "shift target year", 
+    y = "ave. species richness / pathway t food-feed demand / yr"
+  )
+```
+### Significance testing with ANOVA
+There appears to be no significant association with target year, but there is with food group.
+```{r}
+test_df <- pathways_biodiv_moments_em %>% 
+  dplyr::filter(delta_diff1_em > 0) %>% 
+  dplyr::mutate(log_delta_diff1_em = log(delta_diff1_em)) %>% 
+  tidyr::drop_na()
+
+summary(aov(lm(biodiv_em ~ log_delta_diff1_em + target_year + food_group, data = test_df)))
+```
+
+Now look at just HAC signatories.
+```{r}
+p_path_pos +
+ geom_point(data = pathways_biodiv_moments_em %>%
+    dplyr::filter(delta_diff1_em > 0) %>% 
+      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    aes(x = abs(delta_diff1_em),
+      y = biodiv_em), 
+    size = 2, 
+    shape = 2) + 
+  geom_smooth(data = pathways_biodiv_moments_em %>%
+    dplyr::filter(delta_diff1_em > 0) %>% 
+      dplyr::filter(iso_alpha3 %in% hac_codes), 
+    aes(x = abs(delta_diff1_em),
+      y = biodiv_em), 
+    method = "lm", colour = "blue", linetype = 2) + 
+  coord_cartesian(xlim = c(1e-3,1e4)) + 
+  facet_wrap(food_group ~ target_year, ncol = 5)
+```
+
+When just the HAC signatories are tested for covariance, the weak dependencies on target year disappear altogether.
+```{r}
+test_df <- pathways_biodiv_moments_em %>%
+    dplyr::filter(delta_diff1_em > 0) %>% 
+      dplyr::filter(iso_alpha3 %in% hac_codes) %>% 
+  dplyr::mutate(log_delta_diff1_em = log(delta_diff1_em)) %>% 
+  tidyr::drop_na()
+
+summary(aov(lm(biodiv_em ~ log_delta_diff1_em + target_year + food_group, data = test_df)))
+```
+
 
 
 ```{r}
