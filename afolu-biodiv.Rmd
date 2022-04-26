@@ -44,10 +44,20 @@ borders_only <- readOGR(dsn = "data/world-administrative-boundaries", layer = "w
 ```
 
 ### Pathways & historical data
-Historical data from the FAO.
-Source: FAO.
+
+NB: Needs some renaming.
 ```{r, show_col_types=FALSE}
 pathways <- readr::read_csv("data/food_feed_pathways.csv")
+pathways <- pathways %>% 
+  dplyr::filter(diet_plan != "CNS-CFP") %>% 
+  dplyr::mutate(diet_plan = ifelse(diet_plan == "ELA-PHD", "ELA", 
+                                   ifelse(diet_plan == "FDA-SDP", "USDA", 
+                                          NA)))
+```
+
+Historical data from the FAO.
+Source: FAO.
+```{r}
 hist_fao <- readr::read_csv("data/food_feed_fao.csv")
 hist_fao <- hist_fao %>%
    dplyr::rename(fao_countrycode = area_code)
@@ -240,19 +250,11 @@ pathways_biodiv_moments_df <- delta_pathways_moments %>%
 Let's carry out a test to see what it looks like.
 ```{r}
 test <- pathways_biodiv_moments_df %>%
-  dplyr::filter(diet_plan == "CNS-CFP" &
+  dplyr::filter(diet_plan == "USDA" &
                   scenario == "SSP3" &
                   food_group == "plant products")
 ```
 
-Large-positive outliers in the deltas between transformation and FAO pathways:
-*IND 24026.28 (target_year = 2045) to 19937.48 (target_year = 2065)
-*NGA 6423.032 (2045) to 7037.927 (2055)
-*PAK 5236.188 (2065) to 6345.643 (2050)
-
-Large-negative outliers in the deltas between transformation and FAO pathways:
-*CHN -40496.5 (target_year = 2050) to -36018.513 (target_year = 2065)
-*USA -4618.142 (2050) to -4062.990 (2065)
 
 HAC countries
 ```{r}
@@ -266,7 +268,7 @@ Plot the test data
 ggplot(
   test %>%
     dplyr::filter(
-      diet_plan == "CNS-CFP" &
+      diet_plan == "USDA" &
         scenario == "SSP3" &
         food_group == "plant products" & target_year == 2050
     ) %>%
@@ -278,7 +280,7 @@ ggplot(
   geom_smooth(method = "lm", colour = "firebrick", fill = "firebrick") +
   geom_point(data = test %>%
     dplyr::filter(
-      diet_plan == "CNS-CFP" &
+      diet_plan == "USDA" &
         scenario == "SSP3" &
         food_group == "plant products" & target_year == 2050
     ) %>%
@@ -291,7 +293,7 @@ ggplot(
     shape = 2) + 
   geom_smooth(data = test %>%
     dplyr::filter(
-      diet_plan == "CNS-CFP" &
+      diet_plan == "USDA" &
         scenario == "SSP3" &
         food_group == "plant products" & target_year == 2050
     ) %>%
@@ -303,7 +305,7 @@ ggplot(
   theme_bw() +
   labs(
     title = "Increasing pathway gaps for high biodiversity countries",
-    subtitle = "filters: CNS diet, SSP3 scenario, 2050 target year for plant products only",
+    subtitle = "filters: USDA diet, SSP3 scenario, 2050 target year for plant products only",
     x = "Difference between transformation pathway ROC and FAO historical ROC (kt/yr)",
     y = biodiv_index
   ) +
@@ -312,7 +314,8 @@ ggplot(
       10 ^ x),
     labels = scales::trans_format("log10", scales::math_format(10 ^
                                                                  .x))
-  )
+  ) + 
+  annotation_logticks(sides = "b", size = 0.4)
 ```
 
 ### Look at historical ROCs
@@ -438,10 +441,13 @@ annotate_text <- data.frame(
 
 Plot the historical data.
 ```{r}
-p_pos0 <- ggplot(data = hist_moments %>%
-                  filter(hist_diff1_ave > 0),
-                aes(x = hist_diff1_ave,
-                    y = biodiv_mean)) +
+p_pos0 <- ggplot(
+  data = hist_moments %>%
+    dplyr::filter(food_group != "fish & seafood") %>%
+    filter(hist_diff1_ave > 0),
+  aes(x = hist_diff1_ave,
+      y = biodiv_mean)
+) +
   geom_point(colour = scales::muted("blue"), alpha = 0.5) +
   geom_errorbar(
     aes(
@@ -458,16 +464,18 @@ p_pos0 <- ggplot(data = hist_moments %>%
     width = .2,
     alpha = 0.5
   ) +
-  geom_smooth(colour = "firebrick", method = "lm", fill = "firebrick") +
+  geom_smooth(colour = "firebrick",
+              method = "lm",
+              fill = "firebrick") +
   theme_bw() +
   theme(
     title = element_text(size = 10),
     legend.position = "top",
-        legend.title = element_blank(), 
-    panel.grid = element_blank()) +
+    legend.title = element_blank(),
+    panel.grid = element_blank()
+  ) +
   labs(
     title = "High biodiveristy countries have experienced more rapid up-shifts in historical supply",
-    subtitle = "Sources: FAO & ICUN Red List",
     x = "Average FAO historical ROC (kt/yr)",
     y = biodiv_index
   ) +
@@ -476,22 +484,28 @@ p_pos0 <- ggplot(data = hist_moments %>%
       10 ^ x),
     labels = scales::trans_format("log10", scales::math_format(10 ^
                                                                  .x))
-  ) + 
-  coord_cartesian(xlim = c(-1e-2, 1.5e4))
+  ) +
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) +
+  annotation_logticks(sides = "b", size = 0.4)
+
 p_pos <- p_pos0 +
   geom_text(
-    data    = annotate_text,
+    data    = annotate_text %>%
+      dplyr::filter(food_group != "fish & seafood"),
     mapping = aes(x = 10, y = 44, label = corval_labs_pos),
     hjust   = 0.4,
     vjust   = 0.9,
     size = 3
   ) +
-  facet_wrap( ~ food_group)
+  facet_wrap(~ food_group)
 
-p_neg0 <- ggplot(data = hist_moments %>%
-                  filter(hist_diff1_ave < 0),
-                aes(x = abs(hist_diff1_ave),
-                    y = biodiv_mean)) +
+p_neg0 <- ggplot(
+  data = hist_moments %>%
+    dplyr::filter(food_group != "fish & seafood") %>%
+    dplyr::filter(hist_diff1_ave < 0),
+  aes(x = abs(hist_diff1_ave),
+      y = biodiv_mean)
+) +
   geom_point(colour = scales::muted("blue"), alpha = 0.5) +
   geom_errorbar(
     aes(
@@ -508,19 +522,19 @@ p_neg0 <- ggplot(data = hist_moments %>%
     width = .2,
     alpha = 0.5
   ) +
-  geom_smooth(colour = "firebrick", method = "lm", fill = "firebrick") +
+  geom_smooth(colour = "firebrick",
+              method = "lm",
+              fill = "firebrick") +
   theme_bw() +
   theme(
-    title = element_text(size = 10), 
+    title = element_text(size = 10),
     legend.position = "top",
-        legend.title = element_blank(), 
-    panel.grid = element_blank()) +
-  labs(
-    title = "Down-shifts in historical supply have no correlation with biodiversity",
-    subtitle = "Sources: FAO & ICUN Red List",
-    x = "Average FAO historical ROC (kt/yr)",
-    y = biodiv_index
+    legend.title = element_blank(),
+    panel.grid = element_blank()
   ) +
+  labs(title = "Down-shifts in historical supply have no correlation with biodiversity",
+       x = "Average FAO historical ROC (kt/yr)",
+       y = biodiv_index) +
   scale_x_log10(
     breaks = scales::trans_breaks("log10", function(x) {
       tmp <- abs(x)
@@ -528,17 +542,19 @@ p_neg0 <- ggplot(data = hist_moments %>%
     }),
     labels = scales::trans_format("log10", scales::math_format(-10 ^
                                                                  .x))
-  ) + 
-  coord_cartesian(xlim = c(-1e-2, 1.5e4))
+  ) +
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) +
+  annotation_logticks(sides = "b", size = 0.4)
 p_neg <- p_neg0 +
   geom_text(
-    data    = annotate_text,
+    data    = annotate_text %>%
+      dplyr::filter(food_group != "fish & seafood"),
     mapping = aes(x = 10, y = 44, label = corval_labs_neg),
     hjust   = 0.4,
     vjust   = 0.9,
     size = 3
   ) +
-  facet_wrap( ~ food_group)
+  facet_wrap(~ food_group) 
 ```
 
 
@@ -669,11 +685,20 @@ annotate_text <- data.frame(
 )
 ```
 
+## Plot Figure 1
+
 Blue triangle-shaped points are over-plotted to represent HAC signatories.
 ```{r}
+hist_moments_1 <- hist_moments %>%
+    filter(food_group != "fish & seafood")
+annotate_text_1 <- annotate_text %>%
+    filter(food_group != "fish & seafood")
+```
+
+
+```{r}
 p_pos0 <- ggplot(
-  data = hist_moments %>%
-    filter(food_group != "fish & seafood") %>%
+  data = hist_moments_1 %>%
     filter(hist_diff1_ave > 0),
   aes(x = hist_diff1_ave,
       y = biodiv_mean)
@@ -702,9 +727,9 @@ p_pos0 <- ggplot(
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8),
-    title = element_text(size = 10), 
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11),
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank(),
     panel.grid = element_blank()
@@ -712,7 +737,6 @@ p_pos0 <- ggplot(
   labs(
     tag = "A",
     title = "Up-shifts in historical supply",
-    subtitle = "Sources: FAO & ICUN Red List",
     x = "Average FAO historical ROC (kt/yr)",
     y = "Critically endangered & vulnerable\nterrestrial species"
   ) +
@@ -722,7 +746,8 @@ p_pos0 <- ggplot(
     labels = scales::trans_format("log10", scales::math_format(10 ^
                                                                  .x))
   ) +
-  coord_cartesian(xlim = c(-1e-2, 1.5e4))
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) +
+  annotation_logticks(sides = "b", size = 0.4)
 
 p_pos1 <- p_pos0 +
   # geom_point(
@@ -736,30 +761,30 @@ p_pos1 <- p_pos0 +
   #   colour = "blue",
   #   alpha = 0.9
   # ) +
-  geom_smooth(
-    data = hac_hist_moments %>%
-      filter(food_group != "fish & seafood") %>%
-      dplyr::filter(hist_diff1_ave > 0),
-    mapping = aes(x = hist_diff1_ave,
-                  y = biodiv_mean),
-    method = "lm",
-    colour = "firebrick",
-    linetype = "dashed", 
-    fill = NA
-  ) +
+  # geom_smooth(
+  #   data = hac_hist_moments %>%
+  #     filter(food_group != "fish & seafood") %>%
+  #     dplyr::filter(hist_diff1_ave > 0),
+  #   mapping = aes(x = hist_diff1_ave,
+  #                 y = biodiv_mean),
+  #   method = "lm",
+  #   colour = "firebrick",
+  #   linetype = "dashed", 
+  #   fill = NA
+  # ) +
   geom_text(
-    data    = annotate_text %>%
+    data    = annotate_text_1 %>%
       filter(food_group != "fish & seafood"),
     mapping = aes(x = 10, y = 44, label = corval_labs_pos),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 3
+    size = 4
   ) +
   facet_wrap(~ food_group)
 
 
 p_neg0 <- ggplot(
-  data = hist_moments %>%
+  data = hist_moments_1 %>%
     filter(food_group != "fish & seafood") %>%
     filter(hist_diff1_ave < 0),
   aes(x = abs(hist_diff1_ave),
@@ -789,9 +814,9 @@ p_neg0 <- ggplot(
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8),
-    title = element_text(size = 10), 
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11),
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank(),
     panel.grid = element_blank()
@@ -799,7 +824,6 @@ p_neg0 <- ggplot(
   labs(
     tag = "B",
     title = "Down-shifts in historical supply",
-    subtitle = "Sources: FAO & ICUN Red List",
     x = "Average FAO historical ROC (kt/yr)",
     y = "Critically endangered & vulnerable\nterrestrial species"
   ) +
@@ -811,7 +835,8 @@ p_neg0 <- ggplot(
     labels = scales::trans_format("log10", scales::math_format(-10 ^
                                                                  .x))
   ) +
-  coord_cartesian(xlim = c(-1e-2, 1.5e4))
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) +
+  annotation_logticks(sides = "b", size = 0.4)
 
 p_neg1 <- p_neg0 +
   # geom_point(
@@ -825,24 +850,24 @@ p_neg1 <- p_neg0 +
   #   colour = "blue",
   #   alpha = 0.9
   # ) +
-  geom_smooth(
-    data = hac_hist_moments %>%
-      filter(food_group != "fish & seafood") %>%
-      dplyr::filter(hist_diff1_ave < 0),
-    mapping = aes(x = abs(hist_diff1_ave),
-                  y = biodiv_mean),
-    method = "lm", 
-    colour = "firebrick",
-    linetype = "dashed", 
-    fill = NA
-  ) +
+  # geom_smooth(
+  #   data = hac_hist_moments %>%
+  #     filter(food_group != "fish & seafood") %>%
+  #     dplyr::filter(hist_diff1_ave < 0),
+  #   mapping = aes(x = abs(hist_diff1_ave),
+  #                 y = biodiv_mean),
+  #   method = "lm", 
+  #   colour = "firebrick",
+  #   linetype = "dashed", 
+  #   fill = NA
+  # ) +
   geom_text(
-    data    = annotate_text %>%
+    data    = annotate_text_1 %>%
       filter(food_group != "fish & seafood"),
     mapping = aes(x = 10, y = 44, label = corval_labs_pos),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 3
+    size = 4
   ) +
   facet_wrap(~ food_group)
 ```
@@ -850,7 +875,7 @@ p_neg1 <- p_neg0 +
 The over-plotted open triangles correspond to countries that are HAC signatories. The others are not. The dashed line is the linear fit to the HAC countries; the solid line is to all countries.
 ```{r, message=FALSE, warning=FALSE}
 cowplot::plot_grid(p_pos1, p_neg1, ncol = 2)
-png(filename = "~/Documents/Data/Output/hac_hist_plots.png", width = 7, height = 3, units = "in", res = 1000)
+png(filename = "plots/figure_1.jpg", width = 750, height = 250, units = "px")
 cowplot::plot_grid(p_pos1, p_neg1, ncol = 2)
 dev.off()
 ```
@@ -1244,7 +1269,7 @@ for (food in foods) {
 }
 ```
 
-
+## Plot Figure 2
 ```{r}
 p_path_pos0 <- ggplot(
   data = trans_path_biodiv_moments %>%
@@ -1274,14 +1299,14 @@ p_path_pos0 <- ggplot(
   geom_smooth(
     colour = scales::muted("firebrick"),
     method = "lm",
-    fill = "firebrick",
+    fill = NA,
     alpha = 0.8
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8), 
-    title = element_text(size = 8), 
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11), 
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank()
   ) +
@@ -1301,9 +1326,10 @@ p_path_pos0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 2
+    size = 3
   ) +
-  coord_cartesian(xlim = c(1e-3, 1e5))
+  coord_cartesian(xlim = c(1e-3, 1e5)) + 
+  annotation_logticks(sides = "b", size = 0.4)
 p_path_pos <- p_path_pos0 +
   facet_grid(diet_plan ~ food_group)
 
@@ -1335,14 +1361,14 @@ p_path_neg0 <- ggplot(
   geom_smooth(
     colour = scales::muted("firebrick"),
     method = "lm",
-    fill = "firebrick",
+    fill = NA,
     alpha = 0.8
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8), 
-    title = element_text(size = 8), 
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11), 
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank()
   ) +
@@ -1365,9 +1391,10 @@ p_path_neg0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 2
+    size = 3
   ) +
-  coord_cartesian(xlim = c(1e-3, 1e5))
+  coord_cartesian(xlim = c(1e-3, 1e5)) + 
+  annotation_logticks(sides = "b", size = 0.4)
 p_path_neg <- p_path_neg0 +
   facet_grid(diet_plan ~ food_group)
 ```
@@ -1375,28 +1402,25 @@ p_path_neg <- p_path_neg0 +
 
 ```{r}
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
-png(filename = "~/Documents/Data/Output/pathways_plots.png", width = 7.5, height = 4.5, units = "in", res = 1000)
+jpeg(filename = "plots/figure_2.jpg", width = 750, height = 350, units = "px")
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
 dev.off()
 ```
 
-Differences
-```{r}
-trans_path_biodiv_moments_1 <- trans_path_biodiv_moments %>% 
-  dplyr::mutate(diet_plan = ifelse(diet_plan == "CNS-CFP", 
-                                   "CNS", 
-                                   ifelse(diet_plan == "FDA-SDP", 
-                                          "USDA", 
-                                          "ELA")))
+# Pathways Gap Analysis
 
-tmp1 <- trans_path_biodiv_moments_1 %>% 
+Determine the gaps, or differences between, future pathway and historical ROCs.
+
+```{r}
+
+tmp1 <- trans_path_biodiv_moments %>% 
   dplyr::filter(diff1_em > 0) %>% 
   dplyr::group_by(diet_plan, food_group) %>% 
   dplyr::summarise(diff1_em_mean = mean(diff1_em, na.rm = TRUE), 
                    .groups = "drop") %>% 
   dplyr::mutate(roc_sign = "positive") 
 
-tmp2 <- trans_path_biodiv_moments_1 %>% 
+tmp2 <- trans_path_biodiv_moments %>% 
   dplyr::filter(diff1_em < 0) %>% 
   dplyr::group_by(diet_plan, food_group) %>% 
   dplyr::summarise(diff1_em_mean = mean(diff1_em, na.rm = TRUE), 
@@ -1409,26 +1433,31 @@ dist_means <- tmp1 %>%
 ```
 
 
+## Plot Figure 3
+
+Differences between the distributions indicate gaps.
+
 ```{r}
-p_path_dens_pos <- ggplot(data = trans_path_biodiv_moments_1 %>%
-         dplyr::filter(food_group != "fish & seafood") %>%
-         dplyr::filter(diff1_em > 0)) +
+p_path_dens_pos <- ggplot(data = trans_path_biodiv_moments %>%
+                            dplyr::filter(food_group != "fish & seafood") %>%
+                            dplyr::filter(diff1_em > 0)) +
   geom_vline(xintercept = 0, alpha = 0.9) +
-  geom_density(aes(x = diff1_em),
-               fill = scales::muted("blue"),
-               alpha = 0.5, 
-               colour = NA
-               ) +
+  geom_density(
+    aes(x = diff1_em),
+    fill = scales::muted("blue"),
+    alpha = 0.4,
+    colour = NA
+  ) +
   geom_density(
     data = hist_pathways_moments %>%
       dplyr::filter(food_group != "fish & seafood") %>%
       dplyr::filter(hist_diff1_ave > 0),
     mapping = aes(x = hist_diff1_ave),
     fill = scales::muted("firebrick"),
-    alpha = 0.5, 
+    alpha = 0.4,
     colour = NA
-  ) + 
-  theme_bw() + 
+  ) +
+  theme_bw() +
   labs(tag = "A",
        title = "Positive rates of change",
        x = "Pathway ROC (kt/yr)",
@@ -1439,28 +1468,31 @@ p_path_dens_pos <- ggplot(data = trans_path_biodiv_moments_1 %>%
       10 ^ tmp
     }),
     labels = scales::trans_format("log10", scales::math_format(10 ^
-                                                                 .x))) +
+                                                                 .x))
+  ) +
+  annotation_logticks(sides = "b", size = 0.4) +
   facet_grid(diet_plan ~ food_group)
 
-p_path_dens_neg <- ggplot(data = trans_path_biodiv_moments_1 %>%
-         dplyr::filter(food_group != "fish & seafood") %>%
-         dplyr::filter(diff1_em < 0)) +
+p_path_dens_neg <- ggplot(data = trans_path_biodiv_moments %>%
+                            dplyr::filter(food_group != "fish & seafood") %>%
+                            dplyr::filter(diff1_em < 0)) +
   geom_vline(xintercept = 0, alpha = 0.9) +
-  geom_density(aes(x = abs(diff1_em)),
-               fill = scales::muted("blue"),
-               alpha = 0.5, 
-               colour = NA
-               ) +
+  geom_density(
+    aes(x = abs(diff1_em)),
+    fill = scales::muted("blue"),
+    alpha = 0.4,
+    colour = NA
+  ) +
   geom_density(
     data = hist_pathways_moments %>%
       dplyr::filter(food_group != "fish & seafood") %>%
       dplyr::filter(hist_diff1_ave < 0),
     mapping = aes(x = abs(hist_diff1_ave)),
     fill = scales::muted("firebrick"),
-    alpha = 0.5, 
+    alpha = 0.4,
     colour = NA
-  ) + 
-  theme_bw() + 
+  ) +
+  theme_bw() +
   labs(tag = "B",
        title = "Negative rates of change",
        x = "Pathway ROC (kt/yr)",
@@ -1471,21 +1503,29 @@ p_path_dens_neg <- ggplot(data = trans_path_biodiv_moments_1 %>%
       10 ^ tmp
     }),
     labels = scales::trans_format("log10", scales::math_format(-10 ^
-                                                                 .x))) +
+                                                                 .x))
+  ) +
+  annotation_logticks(sides = "b", size = 0.4) +
   facet_grid(diet_plan ~ food_group)
 
 #dummy plot to get a legend
-p_0 <- ggplot(data = data.frame(category = c("historical", "future"), 
-                         x = c(1,1), 
-                         y = c(1,1)), 
-       mapping = aes(x = 1, y = 1)) + 
-  geom_area(aes(fill = category), 
-            alpha = 0.5) + 
-  scale_fill_manual(labels = c("historical data", "future pathway"), 
-                         values = c(scales::muted("firebrick"), scales::muted("blue"))) + 
+p_0 <-
+  ggplot(data = data.frame(
+    category = c("historical", "future"),
+    x = c(1, 1),
+    y = c(1, 1)
+  ),
+  mapping = aes(x = 1, y = 1)) +
+  geom_area(aes(fill = category),
+            alpha = 0.5) +
+  scale_fill_manual(
+    labels = c("historical data", "future pathway"),
+    values = c(scales::muted("firebrick"), scales::muted("blue"))
+  ) +
   theme(
-    legend.position = "top", 
-    legend.title = element_blank()
+    legend.position = "top",
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12)
   )
 
 p_dens_legend <- cowplot::get_legend(p_0)
@@ -1494,12 +1534,95 @@ p_dens_legend <- cowplot::get_legend(p_0)
 
 
 ```{r}
+set.seed(123)
+```
+
+```{r}
+function(data1, data2) {
+  ks.test(data1, data2)
+}
+```
+
+
+```{r}
+path_tmp <- trans_path_biodiv_moments %>%
+  dplyr::filter(food_group != "fish & seafood") %>%
+  dplyr::filter(diff1_em < 0) %>%
+  dplyr::select(diet_plan, food_group, diff1_em)
+# %>% 
+#   dplyr::group_by(diet_plan, food_group) %>% 
+#   tidyr::nest(path_data = diff1_em)
+
+hist_tmp <- hist_pathways_moments %>%
+  dplyr::filter(food_group != "fish & seafood") %>%
+  dplyr::filter(hist_diff1_ave < 0) %>%
+  dplyr::select(food_group, hist_diff1_ave)
+# %>% 
+#   dplyr::group_by(food_group) %>% 
+#   tidyr::nest(hist_data = hist_diff1_ave)
+
+hist_path_tmp <- path_tmp %>% 
+  dplyr::full_join(hist_tmp)
+
+tmp1 <- hist_path_tmp %>% 
+  dplyr::filter(food_group == "animal products" & diet_plan == "USDA") %>% 
+  dplyr::pull(diff1_em)
+tmp2 <- hist_path_tmp %>% 
+  dplyr::filter(food_group == "animal products" & diet_plan == "USDA") %>% 
+  dplyr::pull(hist_diff1_ave)
+
+ks.test(tmp1, tmp2)
+
+```
+
+
+Take differences.
+```{r}
+p_neg_dat <- ggplot_build(p_path_dens_neg)
+
+neg_dat1 <- p_neg_dat$data[[2]] %>% 
+  dplyr::mutate(pathway = ifelse(fill == "#3A3A98", 
+                                 "future", 
+                                 ifelse(fill == "#832424", 
+                                        "historical", 
+                                        NA))) %>% 
+  dplyr::select(x, y, PANEL, pathway)
+
+neg_dat2 <- p_neg_dat$data[[3]] %>% 
+  dplyr::mutate(pathway = ifelse(fill == "#3A3A98", 
+                                 "future", 
+                                 ifelse(fill == "#832424", 
+                                        "historical", 
+                                        NA))) %>% 
+  dplyr::select(x, y, PANEL, pathway)
+
+neg_dat <- neg_dat1 %>% 
+  dplyr::mutate(sign = ifelse(pathway == "future", 
+                                 1, 
+                                 ifelse(pathway == "historical", 
+                                        -1, 
+                                        NA))) %>% 
+  dplyr::mutate(
+    x_prime = round(x, 1), 
+    y_prime = y*sign
+    ) %>% 
+  dplyr::full_join(neg_dat2) %>% 
+  dplyr::group_by(x_prime, PANEL) %>% 
+  dplyr::summarise(y_diff = sum(y_prime), 
+                   .groups = "drop")
+
+```
+
+
+
+Write to disk.
+```{r}
 
 
 p_dens_plots <- cowplot::plot_grid(p_path_dens_pos, p_path_dens_neg, ncol = 2)
 cowplot::plot_grid(p_dens_legend, p_dens_plots, ncol = 1, rel_heights = c(0.1,0.9))
 
-png(filename = "~/Documents/Data/Output/pathway_densities_plots.png", width = 7.5, height = 4.5, units = "in", res = 1000)
+jpeg(filename = "plots/figure_3.jpg", width = 750, height = 350, units = "px")
 cowplot::plot_grid(p_dens_legend, p_dens_plots, ncol = 1, rel_heights = c(0.1,0.9))
 dev.off()
 ```
@@ -1571,7 +1694,9 @@ for (food in foods) {
 }
 ```
 
+## Plot Figure 4
 
+Biodiversity index plotted as a function of pathway gaps.
 
 ```{r}
 p_path_pos0 <- ggplot(
@@ -1590,14 +1715,14 @@ p_path_pos0 <- ggplot(
         xmax = delta_diff1_mx),
     colour = scales::muted("blue"),
     width = .2,
-    alpha = 0.5
+    alpha = 0.4
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mn,
         ymax = biodiv_mx),
     colour = scales::muted("blue"),
     width = .2,
-    alpha = 0.5
+    alpha = 0.4
   ) +
   geom_smooth(
     colour = scales::muted("firebrick"),
@@ -1607,8 +1732,9 @@ p_path_pos0 <- ggplot(
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11), 
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank()
   ) +
@@ -1628,9 +1754,10 @@ p_path_pos0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 2
+    size = 3
   ) +
-  coord_cartesian(xlim = c(1e-3, 1e5))
+  coord_cartesian(xlim = c(1e-3, 1e5)) + 
+  annotation_logticks(sides = "b", size = 0.4)
 p_path_pos <- p_path_pos0 +
   facet_grid(diet_plan ~ food_group)
 
@@ -1644,13 +1771,13 @@ p_path_neg0 <- ggplot(
   geom_vline(xintercept = 0, alpha = 0.9) +
   geom_point(colour = scales::muted("blue"),
              size = 0.8,
-             alpha = 0.5) +
+             alpha = 0.4) +
   geom_errorbar(
     aes(xmin = delta_diff1_mn,
         xmax = delta_diff1_mx),
     colour = scales::muted("blue"),
     width = .2,
-    alpha = 0.5
+    alpha = 0.4
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mn,
@@ -1667,8 +1794,9 @@ p_path_neg0 <- ggplot(
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11), 
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank()
   ) +
@@ -1691,9 +1819,10 @@ p_path_neg0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 2
+    size = 3
   ) +
-  coord_cartesian(xlim = c(1e-3, 1e5))
+  coord_cartesian(xlim = c(1e-3, 1e5)) + 
+  annotation_logticks(sides = "b", size = 0.4)
 p_path_neg <- p_path_neg0 +
   facet_grid(diet_plan ~ food_group)
 ```
@@ -1701,7 +1830,7 @@ p_path_neg <- p_path_neg0 +
 
 ```{r}
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
-png(filename = "~/Documents/Data/Output/pathways_plots.png", width = 7.5, height = 4.5, units = "in", res = 1000)
+jpeg(filename = "plots/figure_4.jpg", width = 750, height = 350, units = "px")
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
 dev.off()
 ```
@@ -1709,7 +1838,8 @@ dev.off()
 
 Now look at just HAC signatories.
 ```{r}
-p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>%
+p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>% 
+                        dplyr::filter(food_group != "fish & seafood") %>% 
                         dplyr::filter(delta_diff1_em > 0),
                       aes(x = delta_diff1_em,
                           y = biodiv_em)) +
@@ -1734,12 +1864,13 @@ p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>%
     method = "lm",
     fill = NA,
     alpha = 0.5, 
-    linetype = 3
+    linetype = 2
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8), 
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11), 
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank()
   ) +
@@ -1753,17 +1884,19 @@ p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>%
     labels = scales::trans_format("log10", scales::math_format(10 ^ .x))
   ) +
   geom_text(
-    data    = annotate_text %>%
+    data    = annotate_text %>% 
+      dplyr::filter(food_group != "fish & seafood") %>%
       dplyr::filter(droc_sign > 0),
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 2
+    size = 3
   ) +
   coord_cartesian(xlim = c(1e-3, 1e5))
 p_path_pos <- p_path_pos0 +
   geom_point(
-    data = pathways_biodiv_moments_em %>%
+    data = pathways_biodiv_moments_em %>% 
+                        dplyr::filter(food_group != "fish & seafood") %>%
       dplyr::filter(delta_diff1_em > 0) %>%
       dplyr::filter(iso_alpha3 %in% hac_codes),
     aes(x = abs(delta_diff1_em),
@@ -1774,7 +1907,8 @@ p_path_pos <- p_path_pos0 +
     alpha = 0.9
   ) +
   geom_smooth(
-    data = pathways_biodiv_moments_em %>%
+    data = pathways_biodiv_moments_em %>% 
+      dplyr::filter(food_group != "fish & seafood") %>%
       dplyr::filter(delta_diff1_em > 0) %>%
       dplyr::filter(iso_alpha3 %in% hac_codes),
     aes(x = abs(delta_diff1_em),
@@ -1785,7 +1919,8 @@ p_path_pos <- p_path_pos0 +
   ) + 
   facet_grid(diet_plan ~ food_group)
 
-p_path_neg0 <- ggplot(data = pathways_biodiv_moments_em %>%
+p_path_neg0 <- ggplot(data = pathways_biodiv_moments_em %>% 
+                        dplyr::filter(food_group != "fish & seafood") %>%
                         dplyr::filter(delta_diff1_em < 0),
                       aes(x = abs(delta_diff1_em),
                           y = biodiv_em)) +
@@ -1810,12 +1945,13 @@ p_path_neg0 <- ggplot(data = pathways_biodiv_moments_em %>%
     method = "lm",
     fill = NA,
     alpha = 0.5, 
-    linetype = 3
+    linetype = 2
   ) +
   theme_bw() +
   theme(
-    axis.text = element_text(size = 7),
-    axis.title = element_text(size = 8), 
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11), 
+    title = element_text(size = 12), 
     legend.position = "top",
     legend.title = element_blank()
   ) +
@@ -1832,17 +1968,19 @@ p_path_neg0 <- ggplot(data = pathways_biodiv_moments_em %>%
                                                                  .x))
   ) +
   geom_text(
-    data    = annotate_text %>%
+    data    = annotate_text %>% 
+      dplyr::filter(food_group != "fish & seafood") %>% 
       dplyr::filter(droc_sign < 0),
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 2
+    size = 3
   ) +
   coord_cartesian(xlim = c(1e-3, 1e5))
 p_path_neg <- p_path_neg0 +
   geom_point(
-    data = pathways_biodiv_moments_em %>%
+    data = pathways_biodiv_moments_em %>% 
+                        dplyr::filter(food_group != "fish & seafood") %>%
       dplyr::filter(delta_diff1_em < 0) %>%
       dplyr::filter(iso_alpha3 %in% hac_codes),
     aes(x = abs(delta_diff1_em),
@@ -1853,7 +1991,8 @@ p_path_neg <- p_path_neg0 +
     alpha = 0.9
   ) +
   geom_smooth(
-    data = pathways_biodiv_moments_em %>%
+    data = pathways_biodiv_moments_em %>% 
+                        dplyr::filter(food_group != "fish & seafood") %>%
       dplyr::filter(delta_diff1_em > 0) %>%
       dplyr::filter(iso_alpha3 %in% hac_codes),
     aes(x = abs(delta_diff1_em),
