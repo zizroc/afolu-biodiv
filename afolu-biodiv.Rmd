@@ -1533,88 +1533,6 @@ p_dens_legend <- cowplot::get_legend(p_0)
 ```
 
 
-```{r}
-set.seed(123)
-```
-
-```{r}
-function(data1, data2) {
-  ks.test(data1, data2)
-}
-```
-
-
-```{r}
-path_tmp <- trans_path_biodiv_moments %>%
-  dplyr::filter(food_group != "fish & seafood") %>%
-  dplyr::filter(diff1_em < 0) %>%
-  dplyr::select(diet_plan, food_group, diff1_em)
-# %>% 
-#   dplyr::group_by(diet_plan, food_group) %>% 
-#   tidyr::nest(path_data = diff1_em)
-
-hist_tmp <- hist_pathways_moments %>%
-  dplyr::filter(food_group != "fish & seafood") %>%
-  dplyr::filter(hist_diff1_ave < 0) %>%
-  dplyr::select(food_group, hist_diff1_ave)
-# %>% 
-#   dplyr::group_by(food_group) %>% 
-#   tidyr::nest(hist_data = hist_diff1_ave)
-
-hist_path_tmp <- path_tmp %>% 
-  dplyr::full_join(hist_tmp)
-
-tmp1 <- hist_path_tmp %>% 
-  dplyr::filter(food_group == "animal products" & diet_plan == "USDA") %>% 
-  dplyr::pull(diff1_em)
-tmp2 <- hist_path_tmp %>% 
-  dplyr::filter(food_group == "animal products" & diet_plan == "USDA") %>% 
-  dplyr::pull(hist_diff1_ave)
-
-ks.test(tmp1, tmp2)
-
-```
-
-
-Take differences.
-```{r}
-p_neg_dat <- ggplot_build(p_path_dens_neg)
-
-neg_dat1 <- p_neg_dat$data[[2]] %>% 
-  dplyr::mutate(pathway = ifelse(fill == "#3A3A98", 
-                                 "future", 
-                                 ifelse(fill == "#832424", 
-                                        "historical", 
-                                        NA))) %>% 
-  dplyr::select(x, y, PANEL, pathway)
-
-neg_dat2 <- p_neg_dat$data[[3]] %>% 
-  dplyr::mutate(pathway = ifelse(fill == "#3A3A98", 
-                                 "future", 
-                                 ifelse(fill == "#832424", 
-                                        "historical", 
-                                        NA))) %>% 
-  dplyr::select(x, y, PANEL, pathway)
-
-neg_dat <- neg_dat1 %>% 
-  dplyr::mutate(sign = ifelse(pathway == "future", 
-                                 1, 
-                                 ifelse(pathway == "historical", 
-                                        -1, 
-                                        NA))) %>% 
-  dplyr::mutate(
-    x_prime = round(x, 1), 
-    y_prime = y*sign
-    ) %>% 
-  dplyr::full_join(neg_dat2) %>% 
-  dplyr::group_by(x_prime, PANEL) %>% 
-  dplyr::summarise(y_diff = sum(y_prime), 
-                   .groups = "drop")
-
-```
-
-
-
 Write to disk.
 ```{r}
 
@@ -1628,6 +1546,102 @@ dev.off()
 ```
 
 
+Compare whether these distributions are alike, with Kolmogrov-Smirnov tests.
+```{r}
+set.seed(123)
+```
+
+Fugly but it works.
+```{r}
+# gab positive pathway data & join
+pos_path_tmp <- trans_path_biodiv_moments %>%
+  dplyr::filter(food_group != "fish & seafood") %>%
+  dplyr::filter(diff1_em > 0) %>%
+  dplyr::select(diet_plan, food_group, diff1_em) 
+pos_hist_tmp <- hist_pathways_moments %>%
+  dplyr::filter(food_group != "fish & seafood") %>%
+  dplyr::filter(hist_diff1_ave > 0) %>%
+  dplyr::select(food_group, hist_diff1_ave)
+pos_hist_path_tmp <- pos_path_tmp %>% 
+  dplyr::full_join(pos_hist_tmp)
+
+# now grap negative pathway data & join
+neg_path_tmp <- trans_path_biodiv_moments %>%
+  dplyr::filter(food_group != "fish & seafood") %>%
+  dplyr::filter(diff1_em < 0) %>%
+  dplyr::select(diet_plan, food_group, diff1_em) %>% 
+  dplyr::mutate(diff1_em = abs(diff1_em))
+neg_hist_tmp <- hist_pathways_moments %>%
+  dplyr::filter(food_group != "fish & seafood") %>%
+  dplyr::filter(hist_diff1_ave < 0) %>%
+  dplyr::select(food_group, hist_diff1_ave) %>% 
+  dplyr::mutate(hist_diff1_ave = abs(hist_diff1_ave))
+neg_hist_path_tmp <- neg_path_tmp %>% 
+  dplyr::full_join(neg_hist_tmp)
+
+for(prod in c("animal products", "plant products")) {
+  for (diet in c("ELA", "USDA")) {
+    tmp1 <- pos_hist_path_tmp %>%
+      dplyr::filter(food_group == prod & diet_plan == diet) %>%
+      dplyr::pull(diff1_em)
+    tmp2 <- pos_hist_path_tmp %>%
+      dplyr::filter(food_group == prod & diet_plan == diet) %>%
+      dplyr::pull(hist_diff1_ave)
+    
+    pos_ks_test <- ks.test(tmp1, tmp2)
+    rm(tmp1, tmp2)
+    
+    pos_ks_test_df <- data.frame(
+      sign = "positive", 
+      food_group = prod, 
+      diet_plan = diet, 
+      ks_test_statistic = pos_ks_test$statistic,
+      ks_test_pval = pos_ks_test$p.value
+    )
+    
+    tmp1 <- neg_hist_path_tmp %>%
+      dplyr::filter(food_group == prod & diet_plan == diet) %>%
+      dplyr::pull(diff1_em)
+    tmp2 <- neg_hist_path_tmp %>%
+      dplyr::filter(food_group == prod & diet_plan == diet) %>%
+      dplyr::pull(hist_diff1_ave)
+    
+    neg_ks_test <- ks.test(tmp1, tmp2)
+    rm(tmp1, tmp2)
+    
+    neg_ks_test_df <- data.frame(
+      sign = "negative", 
+      food_group = prod, 
+      diet_plan = diet, 
+      ks_test_statistic = neg_ks_test$statistic,
+      ks_test_pval = neg_ks_test$p.value
+    )
+    
+    ks_test_df <- pos_ks_test_df %>% 
+      dplyr::bind_rows(neg_ks_test_df)
+    
+    if(prod == "animal products" & diet == "ELA") {
+      ks_test_DF <- ks_test_df
+    } else {
+      ks_test_DF <- ks_test_DF %>% 
+      dplyr::full_join(ks_test_df)
+    }
+  }
+}
+# tmp1 <- pos_hist_path_tmp %>%
+#   dplyr::filter(food_group == "animal products" & diet_plan == "USDA") %>%
+#   dplyr::pull(diff1_em)
+# tmp2 <- pos_hist_path_tmp %>%
+#   dplyr::filter(food_group == "animal products" & diet_plan == "USDA") %>%
+#   dplyr::pull(hist_diff1_ave)
+# 
+# tmp <- ks.test(tmp1, tmp2)
+
+ks_test_DF
+
+```
+
+Take a look at some differences.
 ```{r}
 trans_path_biodiv_moments %>%
          dplyr::filter(food_group != "fish & seafood") %>%
@@ -1754,7 +1768,7 @@ p_path_pos0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 3
+    size = 4
   ) +
   coord_cartesian(xlim = c(1e-3, 1e5)) + 
   annotation_logticks(sides = "b", size = 0.4)
@@ -1819,7 +1833,7 @@ p_path_neg0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 3
+    size = 4
   ) +
   coord_cartesian(xlim = c(1e-3, 1e5)) + 
   annotation_logticks(sides = "b", size = 0.4)
@@ -1836,7 +1850,247 @@ dev.off()
 ```
 
 
-Now look at just HAC signatories.
+Now look at just HAC signatories, and then countries that are not HAC signatories.
+```{r, message=FALSE}
+annotate_text_hac_only <- data.frame(
+  food_group = NA,
+  diet_plan = NA,
+  droc_sign = NA,
+  corr = NA,
+  pval = NA,
+  labz = NA
+)
+
+for (food in c("animal products", "plant products")) {
+  for (diet in diets) {
+    for (droc_sign in c(1, -1)) {
+      if (droc_sign == 1) {
+        pathways_tmp <-  pathways_biodiv_moments_em %>% 
+          filter(food_group != "fish & seafood") %>% 
+          filter(iso_alpha3 %in% hac_codes) %>% 
+          filter(delta_diff1_em > 0)
+      } else {
+        pathways_tmp <-  pathways_biodiv_moments_em %>% 
+          filter(food_group != "fish & seafood") %>% 
+          filter(iso_alpha3 %in% hac_codes) %>%
+          filter(delta_diff1_em < 0)
+      }
+      tmp_cor <- cor.test(
+        pathways_tmp %>%
+          filter(food_group == food & diet_plan == diet) %>%
+          mutate(delta_diff1_em = log(abs(delta_diff1_em))) %>%
+          pull(delta_diff1_em),
+        pathways_tmp %>%
+          filter(food_group == food & diet_plan == diet) %>%
+          pull(biodiv_em)
+      )
+      tmp_df <- data.frame(
+        food_group = food,
+        diet_plan = diet, 
+        droc_sign = droc_sign,
+        corr = as.numeric(tmp_cor$estimate),
+        pval = as.numeric(tmp_cor$p.value),
+        labz = paste0(
+          "r = ",
+          round(as.numeric(tmp_cor$estimate), 2),
+          " (p ~ ",
+          signif(as.numeric(tmp_cor$p.value), 1),
+          ")"
+        )
+      )
+      annotate_text_hac_only <- annotate_text_hac_only %>%
+        dplyr::full_join(tmp_df) %>%
+        tidyr::drop_na()
+    }
+  }
+}
+
+# non-HAC
+annotate_text_non_hac_only <- data.frame(
+  food_group = NA,
+  diet_plan = NA,
+  droc_sign = NA,
+  corr = NA,
+  pval = NA,
+  labz = NA
+)
+
+for (food in c("animal products", "plant products")) {
+  for (diet in diets) {
+    for (droc_sign in c(1, -1)) {
+      if (droc_sign == 1) {
+        pathways_tmp <-  pathways_biodiv_moments_em %>% 
+          filter(food_group != "fish & seafood") %>% 
+          filter(!iso_alpha3 %in% hac_codes) %>% 
+          filter(delta_diff1_em > 0)
+      } else {
+        pathways_tmp <-  pathways_biodiv_moments_em %>% 
+          filter(food_group != "fish & seafood") %>% 
+          filter(!iso_alpha3 %in% hac_codes) %>%
+          filter(delta_diff1_em < 0)
+      }
+      tmp_cor <- cor.test(
+        pathways_tmp %>%
+          filter(food_group == food & diet_plan == diet) %>%
+          mutate(delta_diff1_em = log(abs(delta_diff1_em))) %>%
+          pull(delta_diff1_em),
+        pathways_tmp %>%
+          filter(food_group == food & diet_plan == diet) %>%
+          pull(biodiv_em)
+      )
+      tmp_df <- data.frame(
+        food_group = food,
+        diet_plan = diet, 
+        droc_sign = droc_sign,
+        corr = as.numeric(tmp_cor$estimate),
+        pval = as.numeric(tmp_cor$p.value),
+        labz = paste0(
+          "r = ",
+          round(as.numeric(tmp_cor$estimate), 2),
+          " (p ~ ",
+          signif(as.numeric(tmp_cor$p.value), 1),
+          ")"
+        )
+      )
+      annotate_text_non_hac_only <- annotate_text_non_hac_only %>%
+        dplyr::full_join(tmp_df) %>%
+        tidyr::drop_na()
+    }
+  }
+}
+
+```
+
+```{r}
+tmp1 <- annotate_text %>%
+  dplyr::filter(food_group != "fish & seafood") %>%
+  dplyr::mutate(group = "All countries")
+
+tmp2 <- annotate_text_hac_only %>%
+  dplyr::mutate(group = "HAC only")
+
+tmp3 <- annotate_text_non_hac_only %>%
+  dplyr::mutate(group = "Non-HAC only")
+
+hac_correlations <- tmp1 %>% 
+  dplyr::full_join(tmp2) %>% 
+  dplyr::full_join(tmp3)
+```
+
+## Plot Figure 5
+
+```{r}
+p_hac_pos <- ggplot(hac_correlations %>% 
+         dplyr::filter(droc_sign == 1), 
+       aes(x = group, 
+           y = corr)) + 
+  geom_col(alpha = 0.2, 
+           colour = "black") + 
+  geom_col_pattern(data = hac_correlations %>% 
+         dplyr::filter(droc_sign == 1 & pval <= 0.1), 
+         aes(x = group, 
+             y = corr), 
+         pattern = "stripe", 
+         pattern_angle = 45, 
+         alpha = 0.2, 
+           colour = "black") + 
+  # geom_col_pattern(data = hac_correlations %>% 
+  #        dplyr::filter(droc_sign == 1 & pval <= 0.05), 
+  #        aes(x = group, 
+  #            y = corr), 
+  #        pattern = "stripe", 
+  #        pattern_angle = 90, 
+  #        alpha = 0.2, 
+  #          colour = "black") + 
+  geom_col_pattern(data = hac_correlations %>% 
+         dplyr::filter(droc_sign == 1 & pval <= 0.01), 
+         aes(x = group, 
+             y = corr), 
+         pattern = "stripe", 
+         pattern_angle = 135, 
+         alpha = 0.2, 
+           colour = "black")  + 
+  geom_hline(yintercept = 0, alpha = 0.8) + 
+  theme_bw() + 
+  theme(
+    axis.title.y = element_text(size = 11), 
+    title = element_text(size = 12), 
+    legend.position = "none", 
+    axis.title.x = element_blank(), 
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 10), 
+    axis.text.y = element_text(size = 10), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.minor.x = element_blank()
+  ) + 
+  labs(
+    tag = "A", 
+    title = "For up-shifts in pathway gap", 
+    y = "Pearson's correlation coefficient"
+  ) + 
+  facet_grid(diet_plan ~ food_group)
+
+p_hac_neg <- ggplot(hac_correlations %>% 
+         dplyr::filter(droc_sign == -1), 
+       aes(x = group, 
+           y = corr)) + 
+  geom_col(alpha = 0.2, 
+           colour = "black") + 
+  geom_col_pattern(data = hac_correlations %>% 
+         dplyr::filter(droc_sign == -1 & pval <= 0.1), 
+         aes(x = group, 
+             y = corr), 
+         pattern = "stripe", 
+         pattern_angle = 45, 
+         alpha = 0.2, 
+           colour = "black") + 
+  # geom_col_pattern(data = hac_correlations %>% 
+  #        dplyr::filter(droc_sign == -1 & pval <= 0.05), 
+  #        aes(x = group, 
+  #            y = corr), 
+  #        pattern = "stripe", 
+  #        pattern_angle = 90, 
+  #        alpha = 0.2, 
+  #          colour = "black") + 
+  geom_col_pattern(data = hac_correlations %>% 
+         dplyr::filter(droc_sign == -1 & pval <= 0.01), 
+         aes(x = group, 
+             y = corr), 
+         pattern = "stripe", 
+         pattern_angle = 135, 
+         alpha = 0.2, 
+           colour = "black")  + 
+  geom_hline(yintercept = 0, alpha = 0.8) + 
+  theme_bw() + 
+  theme(
+    axis.title.y = element_text(size = 11), 
+    title = element_text(size = 12), 
+    legend.position = "none", 
+    axis.title.x = element_blank(), 
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 10), 
+    axis.text.y = element_text(size = 10), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.minor.x = element_blank()
+  ) + 
+  labs(
+    tag = "B", 
+    title = "For down-shifts in pathway gap", 
+    y = "Pearson's correlation coefficient"
+  ) + 
+  facet_grid(diet_plan ~ food_group)
+
+```
+
+Write to disk.
+
+```{r}
+cowplot::plot_grid(p_hac_pos, p_hac_neg, ncol = 2)
+jpeg(filename = "plots/figure_5.jpg", width = 750, height = 350, units = "px")
+cowplot::plot_grid(p_hac_pos, p_hac_neg, ncol = 2)
+dev.off()
+```
+
+
+
 ```{r}
 p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>% 
                         dplyr::filter(food_group != "fish & seafood") %>% 
