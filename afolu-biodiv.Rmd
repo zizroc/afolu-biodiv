@@ -475,7 +475,7 @@ p_pos0 <- ggplot(
     panel.grid = element_blank()
   ) +
   labs(
-    title = "High biodiveristy countries have experienced more rapid up-shifts in historical supply",
+    title = "High biodiveristy countries have experienced more rapid speed-ups in historical supply",
     x = "Average FAO historical ROC (kt/yr)",
     y = biodiv_index
   ) +
@@ -532,7 +532,7 @@ p_neg0 <- ggplot(
     legend.title = element_blank(),
     panel.grid = element_blank()
   ) +
-  labs(title = "Down-shifts in historical supply have no correlation with biodiversity",
+  labs(title = "Slow-downs in historical supply have no correlation with biodiversity",
        x = "Average FAO historical ROC (kt/yr)",
        y = biodiv_index) +
   scale_x_log10(
@@ -565,7 +565,7 @@ cowplot::plot_grid(p_pos, p_neg, ncol = 1)
 dev.off()
 ```
 
-This shows that large increases in the ROC of production (up-shifts) are more common in high-biodiversity countries, and decreases (down-shifts) are not correlated at all.
+This shows that large increases in the ROC of production (speed-ups) are more common in high-biodiversity countries, and decreases (down-shifts) are not correlated at all.
 
 Is this different for countries that have signed up to the HAC pledge? Subset the HAC countries.
 ```{r}
@@ -736,7 +736,7 @@ p_pos0 <- ggplot(
   ) +
   labs(
     tag = "A",
-    title = "Up-shifts in historical supply",
+    title = "Speed-ups in historical supply",
     x = "Average FAO historical ROC (kt/yr)",
     y = "Critically endangered & vulnerable\nterrestrial species"
   ) +
@@ -823,7 +823,7 @@ p_neg0 <- ggplot(
   ) +
   labs(
     tag = "B",
-    title = "Down-shifts in historical supply",
+    title = "Slow-downs in historical supply",
     x = "Average FAO historical ROC (kt/yr)",
     y = "Critically endangered & vulnerable\nterrestrial species"
   ) +
@@ -880,7 +880,7 @@ cowplot::plot_grid(p_pos1, p_neg1, ncol = 2)
 dev.off()
 ```
 
-The correlation with up-shifts appears to go away entirely; it's still uncorrelated for down-shifts.
+The correlation with speed-ups appears to go away entirely; it's still uncorrelated for down-shifts.
 
 
 ### Variance of results
@@ -888,26 +888,26 @@ The correlation with up-shifts appears to go away entirely; it's still uncorrela
 How much does food group, diet plan and target year impact the outcome of delta_diff1_med?
 
 
-Food group and diet plan are most significant. 
-```{r}
-dat_tmp <- pathways_biodiv_moments_df %>% 
-  dplyr::select(-delta_diff1_med, -biodiv_median, -biodiv_sd) %>% 
-  dplyr::filter(delta_diff1_ave > 0)
-# %>% 
-#   dplyr::filter(iso_alpha3 == "AFG") 
+<!-- Food group and diet plan are most significant.  -->
+<!-- ```{r} -->
+<!-- dat_tmp <- pathways_biodiv_moments_df %>%  -->
+<!--   dplyr::select(-delta_diff1_med, -biodiv_median, -biodiv_sd) %>%  -->
+<!--   dplyr::filter(delta_diff1_ave > 0) -->
+<!-- # %>%  -->
+<!-- #   dplyr::filter(iso_alpha3 == "AFG")  -->
 
-dat_tmp$diet_plan <- factor(dat_tmp$diet_plan, levels = c("CNS-CFP","ELA-PHD","FDA-SDP"))
-dat_tmp$scenario <- factor(dat_tmp$scenario, levels = c("SSP1","SSP2","SSP3","SSP4","SSP5"))
-dat_tmp$food_group <- factor(dat_tmp$food_group, levels = c("animal products", "fish & seafood", "plant products"))
-dat_tmp$target_year <- factor(dat_tmp$target_year, levels = c(2045, 2050, 2055, 2060, 2065))
+<!-- dat_tmp$diet_plan <- factor(dat_tmp$diet_plan, levels = c("CNS-CFP","ELA-PHD","FDA-SDP")) -->
+<!-- dat_tmp$scenario <- factor(dat_tmp$scenario, levels = c("SSP1","SSP2","SSP3","SSP4","SSP5")) -->
+<!-- dat_tmp$food_group <- factor(dat_tmp$food_group, levels = c("animal products", "fish & seafood", "plant products")) -->
+<!-- dat_tmp$target_year <- factor(dat_tmp$target_year, levels = c(2045, 2050, 2055, 2060, 2065)) -->
 
-# anova_tmp <- aov(biodiv_mean ~ delta_diff1_ave + diet_plan + scenario + food_group + target_year + iso_alpha3, data = dat_tmp)
-anova_tmp <- aov(delta_diff1_ave ~ diet_plan + scenario + food_group + target_year, data = dat_tmp)
-# anova_tmp <- aov(biodiv_mean ~ delta_diff1_ave*diet_plan*scenario*target_year, data = dat_tmp)
+<!-- # anova_tmp <- aov(biodiv_mean ~ delta_diff1_ave + diet_plan + scenario + food_group + target_year + iso_alpha3, data = dat_tmp) -->
+<!-- anova_tmp <- aov(delta_diff1_ave ~ diet_plan + scenario + food_group + target_year, data = dat_tmp) -->
+<!-- # anova_tmp <- aov(biodiv_mean ~ delta_diff1_ave*diet_plan*scenario*target_year, data = dat_tmp) -->
 
-anova_results <- summary(anova_tmp)
-anova_results
-```
+<!-- anova_results <- summary(anova_tmp) -->
+<!-- anova_results -->
+<!-- ``` -->
 
 
 
@@ -1311,7 +1311,7 @@ p_path_pos0 <- ggplot(
     legend.title = element_blank()
   ) +
   labs(tag = "A",
-       title = "Up-shifts in present supply to future demand",
+       title = "Speed-ups in present supply to future demand",
        x = "Present supply to future demand pathway ROC (kt/yr)",
        y = "Critically endangered & vulnerable terrestrial species") +
   scale_x_log10(
@@ -1373,7 +1373,7 @@ p_path_neg0 <- ggplot(
     legend.title = element_blank()
   ) +
   labs(tag = "B",
-       title = "Down-shifts in present supply to future demand",
+       title = "Slow-downs in present supply to future demand",
        x = "Present supply to future demand pathway ROC (kt/yr)",
        y = "Critically endangered & vulnerable terrestrial species") +
   scale_x_log10(
@@ -1753,7 +1753,7 @@ p_path_pos0 <- ggplot(
     legend.title = element_blank()
   ) +
   labs(tag = "A",
-       title = "Up-shifts in pathway gap",
+       title = "Speed-ups in pathway gap",
        x = "Difference between future pathway and historical ROC (kt/yr)",
        y = "Critically endangered & vulnerable terrestrial species") +
   scale_x_log10(
@@ -1815,7 +1815,7 @@ p_path_neg0 <- ggplot(
     legend.title = element_blank()
   ) +
   labs(tag = "B",
-       title = "Down-shifts in pathway gap",
+       title = "Slow-downs in pathway gap",
        x = "Difference between future pathway and historical ROC (kt/yr)",
        y = "Critically endangered & vulnerable terrestrial species") +
   scale_x_log10(
@@ -2024,7 +2024,7 @@ p_hac_pos <- ggplot(hac_correlations %>%
   ) + 
   labs(
     tag = "A", 
-    title = "For up-shifts in pathway gap", 
+    title = "For speed-ups in pathway gap", 
     y = "Pearson's correlation coefficient"
   ) + 
   facet_grid(diet_plan ~ food_group)
@@ -2073,7 +2073,7 @@ p_hac_neg <- ggplot(hac_correlations %>%
   ) + 
   labs(
     tag = "B", 
-    title = "For down-shifts in pathway gap", 
+    title = "For slow-downs in pathway gap", 
     y = "Pearson's correlation coefficient"
   ) + 
   facet_grid(diet_plan ~ food_group)
@@ -2129,7 +2129,7 @@ p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>%
     legend.title = element_blank()
   ) +
   labs(tag = "A",
-       title = "Up-shifts in pathway gap",
+       title = "Speed-ups in pathway gap",
        x = "Difference between future pathway and historical ROC (kt/yr)",
        y = "Critically endangered & vulnerable terrestrial species") +
   scale_x_log10(
@@ -2210,7 +2210,7 @@ p_path_neg0 <- ggplot(data = pathways_biodiv_moments_em %>%
     legend.title = element_blank()
   ) +
   labs(tag = "B",
-       title = "Down-shifts in pathway gap",
+       title = "Slow-downs in pathway gap",
        x = "Difference between future pathway and historical ROC (kt/yr)",
        y = "Critically endangered & vulnerable terrestrial species") +
   scale_x_log10(
@@ -2561,7 +2561,7 @@ p_pos0 <- ggplot(data = hist_moments %>%
     legend.position = "top",
         legend.title = element_blank()) +
   labs(
-    title = "High biodiveristy countries have experienced more rapid up-shifts in historical supply",
+    title = "High biodiveristy countries have experienced more rapid speed-ups in historical supply",
     subtitle = "Sources: FAO & ICUN Red List",
     x = "Average FAO historical ROC (kt/yr)",
     y = biodiv_index
@@ -2609,7 +2609,7 @@ p_neg0 <- ggplot(data = hist_moments %>%
     legend.position = "top",
         legend.title = element_blank()) +
   labs(
-    title = "Down-shifts in historical supply have no correlation with biodiversity",
+    title = "Slow-downs in historical supply have no correlation with biodiversity",
     subtitle = "Sources: FAO & ICUN Red List",
     x = "Average FAO historical ROC (kt/yr)",
     y = biodiv_index
@@ -2638,7 +2638,7 @@ p_neg <- p_neg0 +
 cowplot::plot_grid(p_pos, p_neg, ncol = 1)
 ```
 
-This shows that large increases in the ROC of production (up-shifts) are more common in high-biodiversity countries, and decreases (down-shifts) are not correlated at all.
+This shows that large increases in the ROC of production (speed-ups) are more common in high-biodiversity countries, and decreases (down-shifts) are not correlated at all.
 
 Is this different for countries that have signed up to the HAC pledge?
 ```{r}
@@ -2813,7 +2813,7 @@ The over-plotted open triangles correspond to countries that are HAC signatories
 cowplot::plot_grid(p_pos1, p_neg1, ncol = 1)
 ```
 
-The correlation with up-shifts appears to go away entirely; it's still uncorrelated for down-shifts.
+The correlation with speed-ups appears to go away entirely; it's still uncorrelated for down-shifts.
 
 
 ### Dependence of slopes with target year
@@ -2855,7 +2855,7 @@ p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>%
   theme_bw() +
   theme(legend.position = "top",
         legend.title = element_blank()) +
-  labs(title = "Up-shifts in pathway gap with biodiversity",
+  labs(title = "Speed-ups in pathway gap with biodiversity",
        x = "Average FAO historical ROC (kt/yr)",
        y = biodiv_index) +
   scale_x_log10(
@@ -2952,7 +2952,7 @@ p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>%
   theme_bw() +
   theme(legend.position = "top",
         legend.title = element_blank()) +
-  labs(title = "Up-shifts in pathway gap with biodiversity", 
+  labs(title = "Speed-ups in pathway gap with biodiversity", 
        subtitle = "Pathways projected up to year 2065", 
        x = "Average FAO historical ROC (kt/yr)",
        y = biodiv_index) +
@@ -3139,7 +3139,7 @@ p_corr <- ggplot(
     )
   ) +
   labs(
-    title = "Food system up-shifts are less feasible for high biodiversity countries",
+    title = "Food system speed-ups are less feasible for high biodiversity countries",
     subtitle = "Correlation (p < 0.05) between mean biodiveristy index and food shift feasibility gap",
     x = "target year",
     y = "Pearson's correlation coefficient"
