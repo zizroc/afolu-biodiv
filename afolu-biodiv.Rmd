@@ -731,8 +731,7 @@ p_pos0 <- ggplot(
     axis.title = element_text(size = 11),
     title = element_text(size = 12), 
     legend.position = "top",
-    legend.title = element_blank(),
-    panel.grid = element_blank()
+    legend.title = element_blank()
   ) +
   labs(
     tag = "A",
@@ -818,8 +817,7 @@ p_neg0 <- ggplot(
     axis.title = element_text(size = 11),
     title = element_text(size = 12), 
     legend.position = "top",
-    legend.title = element_blank(),
-    panel.grid = element_blank()
+    legend.title = element_blank()
   ) +
   labs(
     tag = "B",
@@ -875,7 +873,7 @@ p_neg1 <- p_neg0 +
 The over-plotted open triangles correspond to countries that are HAC signatories. The others are not. The dashed line is the linear fit to the HAC countries; the solid line is to all countries.
 ```{r, message=FALSE, warning=FALSE}
 cowplot::plot_grid(p_pos1, p_neg1, ncol = 2)
-png(filename = "plots/figure_1.jpg", width = 750, height = 250, units = "px")
+png(filename = "plots/figure_1-ab.jpg", width = 750, height = 250, units = "px")
 cowplot::plot_grid(p_pos1, p_neg1, ncol = 2)
 dev.off()
 ```
@@ -1313,7 +1311,7 @@ p_path_pos0 <- ggplot(
   labs(tag = "A",
        title = "Speed-ups in present supply to future demand",
        x = "Present supply to future demand pathway ROC (kt/yr)",
-       y = "Critically endangered & vulnerable terrestrial species") +
+       y = "Critically endangered & vulnerable\nterrestrial species") +
   scale_x_log10(
     breaks = scales::trans_breaks("log10", function(x)
       10 ^ x),
@@ -1326,9 +1324,9 @@ p_path_pos0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 3
+    size = 4
   ) +
-  coord_cartesian(xlim = c(1e-3, 1e5)) + 
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) + 
   annotation_logticks(sides = "b", size = 0.4)
 p_path_pos <- p_path_pos0 +
   facet_grid(diet_plan ~ food_group)
@@ -1375,7 +1373,7 @@ p_path_neg0 <- ggplot(
   labs(tag = "B",
        title = "Slow-downs in present supply to future demand",
        x = "Present supply to future demand pathway ROC (kt/yr)",
-       y = "Critically endangered & vulnerable terrestrial species") +
+       y = "Critically endangered & vulnerable\nterrestrial species") +
   scale_x_log10(
     breaks = scales::trans_breaks("log10", function(x) {
       tmp <- abs(x)
@@ -1391,9 +1389,9 @@ p_path_neg0 <- ggplot(
     mapping = aes(x = 10, y = 44, label = labz),
     hjust   = 0.4,
     vjust   = 0.9,
-    size = 3
+    size = 4
   ) +
-  coord_cartesian(xlim = c(1e-3, 1e5)) + 
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) + 
   annotation_logticks(sides = "b", size = 0.4)
 p_path_neg <- p_path_neg0 +
   facet_grid(diet_plan ~ food_group)
@@ -1402,10 +1400,45 @@ p_path_neg <- p_path_neg0 +
 
 ```{r}
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
-jpeg(filename = "plots/figure_2.jpg", width = 750, height = 350, units = "px")
+jpeg(filename = "plots/figure_1-cd.jpg", width = 750, height = 350, units = "px")
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
 dev.off()
 ```
+
+Glom figs together.
+
+```{r}
+p_path_pos <- p_path_pos0 +
+  labs(
+    tag = "C"
+  ) + 
+  facet_grid(diet_plan ~ food_group)
+
+p_path_neg <- p_path_neg0 +
+  labs(
+    tag = "D"
+  ) + 
+  facet_grid(diet_plan ~ food_group)
+
+p1 <- cowplot::plot_grid(p_pos1, p_neg1, ncol = 2) + 
+  theme(
+    plot.background = element_rect(colour = "black", size = 2)
+  )
+p2 <- cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2) + 
+  theme(
+    plot.background = element_rect(colour = "black", size = 2)
+  )
+
+```
+
+```{r}
+p_fig1 <- cowplot::plot_grid(p1, p2, ncol = 1, rel_heights = c(0.4,0.6))
+p_fig1
+jpeg(filename = "plots/figure_1.jpg", width = 800, height = 550, units = "px")
+p_fig1
+dev.off()
+```
+
 
 # Pathways Gap Analysis
 
@@ -1540,7 +1573,7 @@ Write to disk.
 p_dens_plots <- cowplot::plot_grid(p_path_dens_pos, p_path_dens_neg, ncol = 2)
 cowplot::plot_grid(p_dens_legend, p_dens_plots, ncol = 1, rel_heights = c(0.1,0.9))
 
-jpeg(filename = "plots/figure_3.jpg", width = 750, height = 350, units = "px")
+jpeg(filename = "plots/figure_2.jpg", width = 750, height = 350, units = "px")
 cowplot::plot_grid(p_dens_legend, p_dens_plots, ncol = 1, rel_heights = c(0.1,0.9))
 dev.off()
 ```
@@ -1721,20 +1754,20 @@ p_path_pos0 <- ggplot(
       y = biodiv_em)
 ) +
   geom_vline(xintercept = 0, alpha = 0.9) +
-  geom_point(colour = scales::muted("blue"),
+  geom_point(colour = scales::muted("purple"),
              size = 0.8,
              alpha = 0.5) +
   geom_errorbar(
     aes(xmin = delta_diff1_mn,
         xmax = delta_diff1_mx),
-    colour = scales::muted("blue"),
+    colour = scales::muted("purple"),
     width = .2,
     alpha = 0.4
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mn,
         ymax = biodiv_mx),
-    colour = scales::muted("blue"),
+    colour = scales::muted("purple"),
     width = .2,
     alpha = 0.4
   ) +
@@ -1783,20 +1816,20 @@ p_path_neg0 <- ggplot(
       y = biodiv_em)
 ) +
   geom_vline(xintercept = 0, alpha = 0.9) +
-  geom_point(colour = scales::muted("blue"),
+  geom_point(colour = scales::muted("purple"),
              size = 0.8,
              alpha = 0.4) +
   geom_errorbar(
     aes(xmin = delta_diff1_mn,
         xmax = delta_diff1_mx),
-    colour = scales::muted("blue"),
+    colour = scales::muted("purple"),
     width = .2,
     alpha = 0.4
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mn,
         ymax = biodiv_mx),
-    colour = scales::muted("blue"),
+    colour = scales::muted("purple"),
     width = .2,
     alpha = 0.5
   ) +
@@ -2575,7 +2608,7 @@ p_pos0 <- ggplot(data = hist_moments %>%
 p_pos <- p_pos0 +
   geom_text(
     data    = annotate_text,
-    mapping = aes(x = 10, y = 800, label = corval_labs_pos),
+    mapping = aes(x = 10, y = 40, label = corval_labs_pos),
     hjust   = 0.4,
     vjust   = 0.9,
     size = 3
@@ -2625,7 +2658,7 @@ p_neg0 <- ggplot(data = hist_moments %>%
 p_neg <- p_neg0 +
   geom_text(
     data    = annotate_text,
-    mapping = aes(x = 10, y = 800, label = corval_labs_neg),
+    mapping = aes(x = 10, y = 40, label = corval_labs_neg),
     hjust   = 0.4,
     vjust   = 0.9,
     size = 3
