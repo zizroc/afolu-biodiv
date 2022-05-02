@@ -1877,7 +1877,7 @@ p_path_neg <- p_path_neg0 +
 
 ```{r}
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
-jpeg(filename = "plots/figure_4.jpg", width = 750, height = 350, units = "px")
+jpeg(filename = "plots/figure_3.jpg", width = 800, height = 350, units = "px")
 cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2)
 dev.off()
 ```
@@ -2117,7 +2117,7 @@ Write to disk.
 
 ```{r}
 cowplot::plot_grid(p_hac_pos, p_hac_neg, ncol = 2)
-jpeg(filename = "plots/figure_5.jpg", width = 750, height = 350, units = "px")
+jpeg(filename = "plots/figure_4.jpg", width = 800, height = 350, units = "px")
 cowplot::plot_grid(p_hac_pos, p_hac_neg, ncol = 2)
 dev.off()
 ```
