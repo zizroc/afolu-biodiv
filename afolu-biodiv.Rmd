@@ -16,6 +16,7 @@ library(raster)
 library(sf)
 library(maps)
 library(rgdal)
+library(ggpattern)
 ```
 
 
@@ -1426,7 +1427,7 @@ p1 <- cowplot::plot_grid(p_pos1, p_neg1, ncol = 2) +
   )
 p2 <- cowplot::plot_grid(p_path_pos, p_path_neg, ncol = 2) + 
   theme(
-    plot.background = element_rect(colour = "black", size = 2)
+    plot.background = element_rect(colour = "black", fill = "grey", size = 2)
   )
 
 ```
