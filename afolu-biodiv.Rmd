@@ -46,7 +46,7 @@ borders_only <- readOGR(dsn = "data/world-administrative-boundaries", layer = "w
 
 ### Pathways & historical data
 
-NB: Needs some renaming.
+Read in food/feed pathways data. This was generated previously, for another study.
 ```{r, show_col_types=FALSE}
 pathways <- readr::read_csv("data/food_feed_pathways.csv")
 pathways <- pathways %>% 
@@ -65,6 +65,7 @@ hist_fao <- hist_fao %>%
 ```
 
 ### Map country names to ISO codes
+
 DF to map ISO3 codes to country names.
 ```{r}
 country_code_map <- readr::read_csv("data/country_mapper.csv")
@@ -148,6 +149,10 @@ get_raster_summary <- function(x) {
     na.omit() %>%
     sd()
   
+  tmp3 <- raster::values(x) %>%
+    na.omit() %>%
+    length()
+  
   return(data.frame(
     names = c(
       "min",
@@ -156,9 +161,10 @@ get_raster_summary <- function(x) {
       "mean",
       "third_quart",
       "max",
-      "sd"
+      "sd",
+      "ncount"
     ),
-    biodiv = c(tmp1, tmp2)
+    biodiv = c(tmp1, tmp2, tmp3)
   ))
 }
 
@@ -178,19 +184,24 @@ mean_vals <- function(x) {
 sd_vals <- function(x) {
   biodiv_country_moments[[x]][[2]][7]
 }
+ncount_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][8]
+}
 
 median_tmp <- lapply(names(biodiv_country_moments), FUN = median_vals)
 mean_tmp <- lapply(names(biodiv_country_moments), FUN = mean_vals)
 sd_tmp <- lapply(names(biodiv_country_moments), FUN = sd_vals)
+ncount_tmp <- lapply(names(biodiv_country_moments), FUN = ncount_vals)
 
 biodiv_moments_df <- data.frame(
   iso_alpha3 = names(biodiv_country_moments),
   biodiv_median = unlist(median_tmp), 
   biodiv_mean = unlist(mean_tmp), 
-  biodiv_sd = unlist(sd_tmp)
+  biodiv_sd = unlist(sd_tmp), 
+  biodiv_ncount = unlist(ncount_tmp)
 )
 
-rm(median_tmp, mean_tmp)
+rm(median_tmp, mean_tmp, sd_tmp, ncount_tmp)
 ```
 
 ### Find pathway ROC gaps
@@ -264,7 +275,7 @@ hac_codes <- hac_countries_map %>%
 ```
 
 
-Plot the test data
+Plot the test data. Use median biodiv index values.
 ```{r}
 ggplot(
   test %>%
@@ -275,7 +286,7 @@ ggplot(
     ) %>%
     dplyr::filter(delta_diff1_ave >= 0),
   aes(x = delta_diff1_ave,
-      y = biodiv_mean)
+      y = biodiv_median)
 ) +
   geom_point(colour = scales::muted("blue"), alpha = 0.5) + 
   geom_smooth(method = "lm", colour = "firebrick", fill = "firebrick") +
@@ -288,7 +299,7 @@ ggplot(
     dplyr::filter(delta_diff1_ave >= 0) %>% 
       dplyr::filter(iso_alpha3 %in% hac_codes), 
     aes(x = delta_diff1_ave,
-      y = biodiv_mean), 
+      y = biodiv_median), 
     colour = "blue",
     size = 2, 
     shape = 2) + 
@@ -301,7 +312,7 @@ ggplot(
     dplyr::filter(delta_diff1_ave >= 0) %>% 
       dplyr::filter(iso_alpha3 %in% hac_codes), 
     mapping = aes(x = delta_diff1_ave,
-      y = biodiv_mean), 
+      y = biodiv_median), 
     method = "lm", colour = "blue", linetype = 2, fill = "blue") + 
   theme_bw() +
   labs(
@@ -337,7 +348,8 @@ plant_prod_pos_corr <- cor.test(
     pull(hist_diff1_ave), 
   hist_moments %>% 
     filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 animal_prod_pos_corr <- cor.test(
   hist_moments %>% 
@@ -346,7 +358,8 @@ animal_prod_pos_corr <- cor.test(
     pull(hist_diff1_ave), 
   hist_moments %>% 
     filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 fish_prod_pos_corr <- cor.test(
   hist_moments %>% 
@@ -355,7 +368,8 @@ fish_prod_pos_corr <- cor.test(
     pull(hist_diff1_ave), 
   hist_moments %>% 
     filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 
 plant_prod_neg_corr <- cor.test(
@@ -365,7 +379,8 @@ plant_prod_neg_corr <- cor.test(
     pull(hist_diff1_ave), 
   hist_moments %>% 
     filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 animal_prod_neg_corr <- cor.test(
   hist_moments %>% 
@@ -374,7 +389,8 @@ animal_prod_neg_corr <- cor.test(
     pull(hist_diff1_ave), 
   hist_moments %>% 
     filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 fish_prod_neg_corr <- cor.test(
   hist_moments %>% 
@@ -383,7 +399,8 @@ fish_prod_neg_corr <- cor.test(
     pull(hist_diff1_ave), 
   hist_moments %>% 
     filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 
 corval_labs_pos = c(
@@ -447,7 +464,7 @@ p_pos0 <- ggplot(
     dplyr::filter(food_group != "fish & seafood") %>%
     filter(hist_diff1_ave > 0),
   aes(x = hist_diff1_ave,
-      y = biodiv_mean)
+      y = biodiv_median)
 ) +
   geom_point(colour = scales::muted("blue"), alpha = 0.5) +
   geom_errorbar(
@@ -456,18 +473,18 @@ p_pos0 <- ggplot(
       xmax = hist_diff1_ave + hist_diff1_sdv
     ),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.5
   ) +
   geom_errorbar(
-    aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
+    aes(ymin = biodiv_median - biodiv_sd, ymax = biodiv_median + biodiv_sd),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.5
   ) +
   geom_smooth(colour = "firebrick",
               method = "lm",
-              fill = "firebrick") +
+              fill = NA) +
   theme_bw() +
   theme(
     title = element_text(size = 10),
@@ -505,7 +522,7 @@ p_neg0 <- ggplot(
     dplyr::filter(food_group != "fish & seafood") %>%
     dplyr::filter(hist_diff1_ave < 0),
   aes(x = abs(hist_diff1_ave),
-      y = biodiv_mean)
+      y = biodiv_median)
 ) +
   geom_point(colour = scales::muted("blue"), alpha = 0.5) +
   geom_errorbar(
@@ -514,18 +531,20 @@ p_neg0 <- ggplot(
       xmax = hist_diff1_ave + hist_diff1_sdv
     ),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.5
   ) +
   geom_errorbar(
-    aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
+    aes(ymin = biodiv_median - biodiv_sd, 
+        ymax = biodiv_median + biodiv_sd
+        ),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.5
   ) +
   geom_smooth(colour = "firebrick",
               method = "lm",
-              fill = "firebrick") +
+              fill = NA) +
   theme_bw() +
   theme(
     title = element_text(size = 10),
@@ -583,7 +602,8 @@ plant_prod_pos_corr <- cor.test(
     pull(hist_diff1_ave), 
   hac_hist_moments %>% 
     filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 animal_prod_pos_corr <- cor.test(
   hac_hist_moments %>% 
@@ -592,7 +612,8 @@ animal_prod_pos_corr <- cor.test(
     pull(hist_diff1_ave), 
   hac_hist_moments %>% 
     filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 fish_prod_pos_corr <- cor.test(
   hac_hist_moments %>% 
@@ -601,7 +622,8 @@ fish_prod_pos_corr <- cor.test(
     pull(hist_diff1_ave), 
   hac_hist_moments %>% 
     filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 
 plant_prod_neg_corr <- cor.test(
@@ -611,7 +633,8 @@ plant_prod_neg_corr <- cor.test(
     pull(hist_diff1_ave), 
   hac_hist_moments %>% 
     filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 animal_prod_neg_corr <- cor.test(
   hac_hist_moments %>% 
@@ -620,7 +643,8 @@ animal_prod_neg_corr <- cor.test(
     pull(hist_diff1_ave), 
   hac_hist_moments %>% 
     filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 fish_prod_neg_corr <- cor.test(
   hac_hist_moments %>% 
@@ -629,7 +653,8 @@ fish_prod_neg_corr <- cor.test(
     pull(hist_diff1_ave), 
   hac_hist_moments %>% 
     filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
-    pull(biodiv_mean)
+    # pull(biodiv_mean)
+    pull(biodiv_median)
 )
 
 corval_labs_pos = c(
@@ -702,7 +727,7 @@ p_pos0 <- ggplot(
   data = hist_moments_1 %>%
     filter(hist_diff1_ave > 0),
   aes(x = hist_diff1_ave,
-      y = biodiv_mean)
+      y = biodiv_median)
 ) +
   geom_point(colour = scales::muted("blue"), size = 0.8, alpha = 0.4) +
   geom_errorbar(
@@ -711,13 +736,14 @@ p_pos0 <- ggplot(
       xmax = hist_diff1_ave + hist_diff1_sdv
     ),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.4
   ) +
   geom_errorbar(
-    aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
+    aes(ymin = biodiv_median - biodiv_sd, 
+        ymax = biodiv_median + biodiv_sd),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.4
   ) +
   geom_smooth(
@@ -732,7 +758,8 @@ p_pos0 <- ggplot(
     axis.title = element_text(size = 11),
     title = element_text(size = 12), 
     legend.position = "top",
-    legend.title = element_blank()
+    legend.title = element_blank(), 
+    panel.grid = element_blank()
   ) +
   labs(
     tag = "A",
@@ -788,7 +815,7 @@ p_neg0 <- ggplot(
     filter(food_group != "fish & seafood") %>%
     filter(hist_diff1_ave < 0),
   aes(x = abs(hist_diff1_ave),
-      y = biodiv_mean)
+      y = biodiv_median)
 ) +
   geom_point(colour = scales::muted("blue"), size = 0.8, alpha = 0.4) +
   geom_errorbar(
@@ -797,13 +824,14 @@ p_neg0 <- ggplot(
       xmax = hist_diff1_ave + hist_diff1_sdv
     ),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.4
   ) +
   geom_errorbar(
-    aes(ymin = biodiv_mean - biodiv_sd, ymax = biodiv_mean + biodiv_sd),
+    aes(ymin = biodiv_median - biodiv_sd, 
+        ymax = biodiv_median + biodiv_sd),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.4
   ) +
   geom_smooth(
@@ -818,7 +846,8 @@ p_neg0 <- ggplot(
     axis.title = element_text(size = 11),
     title = element_text(size = 12), 
     legend.position = "top",
-    legend.title = element_blank()
+    legend.title = element_blank(), 
+    panel.grid = element_blank()
   ) +
   labs(
     tag = "B",
@@ -1024,7 +1053,8 @@ pathways_biodiv_moments_em <- pathways_biodiv_moments_df %>%
   dplyr::summarise(delta_diff1_em = mean(delta_diff1_ave, na.rm = TRUE), 
                    delta_diff1_mn = min(delta_diff1_ave, na.rm = TRUE), 
                    delta_diff1_mx = max(delta_diff1_ave, na.rm = TRUE), 
-                   biodiv_em = mean(biodiv_mean, na.rm = TRUE), 
+                   # biodiv_em = mean(biodiv_mean, na.rm = TRUE), 
+                   biodiv_em = mean(biodiv_median, na.rm = TRUE), 
                    biodiv_mn = biodiv_em - mean(biodiv_sd, na.rm = TRUE), 
                    biodiv_mx = biodiv_em + mean(biodiv_sd, na.rm = TRUE), 
                    .groups = "drop")
@@ -1211,17 +1241,20 @@ ggplot(data = slopes_df %>%
 ### Plot for future ROC
 
 ```{r}
-trans_path_biodiv_moments <- trans_pathways_moments %>% 
-  dplyr::full_join(biodiv_moments_df, by = "iso_alpha3") %>% 
-  tidyr::drop_na() %>% 
-  dplyr::group_by(iso_alpha3, diet_plan, food_group) %>% 
-  dplyr::summarise(diff1_em = mean(diff1_ave, na.rm = TRUE), 
-                   diff1_mn = min(diff1_ave, na.rm = TRUE), 
-                   diff1_mx = max(diff1_ave, na.rm = TRUE), 
-                   biodiv_em = mean(biodiv_mean, na.rm = TRUE), 
-                   biodiv_mn = biodiv_em - mean(biodiv_sd, na.rm = TRUE), 
-                   biodiv_mx = biodiv_em + mean(biodiv_sd, na.rm = TRUE), 
-                   .groups = "drop")
+trans_path_biodiv_moments <- trans_pathways_moments %>%
+  dplyr::full_join(biodiv_moments_df, by = "iso_alpha3") %>%
+  tidyr::drop_na() %>%
+  dplyr::group_by(iso_alpha3, diet_plan, food_group) %>%
+  dplyr::summarise(
+    diff1_em = mean(diff1_ave, na.rm = TRUE),
+    diff1_mn = min(diff1_ave, na.rm = TRUE),
+    diff1_mx = max(diff1_ave, na.rm = TRUE),
+    # biodiv_em = mean(biodiv_mean, na.rm = TRUE),
+    biodiv_em = mean(biodiv_median, na.rm = TRUE),
+    biodiv_mn = biodiv_em - mean(biodiv_sd, na.rm = TRUE),
+    biodiv_mx = biodiv_em + mean(biodiv_sd, na.rm = TRUE),
+    .groups = "drop"
+  )
 ```
 
 
@@ -1285,14 +1318,14 @@ p_path_pos0 <- ggplot(
     aes(xmin = diff1_mn,
         xmax = diff1_mx),
     colour = scales::muted("blue"),
-    width = .2,
+    # width = .2,
     alpha = 0.5
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mn,
         ymax = biodiv_mx),
     colour = scales::muted("blue"),
-    width = .2,
+  # width = .2,
     alpha = 0.5
   ) +
   geom_smooth(
@@ -1307,7 +1340,8 @@ p_path_pos0 <- ggplot(
     axis.title = element_text(size = 11), 
     title = element_text(size = 12), 
     legend.position = "top",
-    legend.title = element_blank()
+    legend.title = element_blank(), 
+    panel.grid = element_blank()
   ) +
   labs(tag = "A",
        title = "Speed-ups in present supply to future demand",
@@ -1347,14 +1381,14 @@ p_path_neg0 <- ggplot(
     aes(xmin = diff1_mn,
         xmax = diff1_mx),
     colour = scales::muted("blue"),
-    width = .2,
+  # width = .2,
     alpha = 0.5
   ) +
   geom_errorbar(
     aes(ymin = biodiv_mn,
         ymax = biodiv_mx),
     colour = scales::muted("blue"),
-    width = .2,
+  # width = .2,
     alpha = 0.5
   ) +
   geom_smooth(
@@ -1369,7 +1403,8 @@ p_path_neg0 <- ggplot(
     axis.title = element_text(size = 11), 
     title = element_text(size = 12), 
     legend.position = "top",
-    legend.title = element_blank()
+    legend.title = element_blank(), 
+    panel.grid = element_blank()
   ) +
   labs(tag = "B",
        title = "Slow-downs in present supply to future demand",
@@ -1686,15 +1721,18 @@ trans_path_biodiv_moments %>%
 ### Plot for future ROC gap
 
 ```{r}
-pathways_biodiv_moments_em <- pathways_biodiv_moments_df %>% 
-  dplyr::group_by(iso_alpha3, diet_plan, food_group) %>% 
-  dplyr::summarise(delta_diff1_em = mean(delta_diff1_ave, na.rm = TRUE), 
-                   delta_diff1_mn = min(delta_diff1_ave, na.rm = TRUE), 
-                   delta_diff1_mx = max(delta_diff1_ave, na.rm = TRUE), 
-                   biodiv_em = mean(biodiv_mean, na.rm = TRUE), 
-                   biodiv_mn = biodiv_em - mean(biodiv_sd, na.rm = TRUE), 
-                   biodiv_mx = biodiv_em + mean(biodiv_sd, na.rm = TRUE), 
-                   .groups = "drop")
+pathways_biodiv_moments_em <- pathways_biodiv_moments_df %>%
+  dplyr::group_by(iso_alpha3, diet_plan, food_group) %>%
+  dplyr::summarise(
+    delta_diff1_em = mean(delta_diff1_ave, na.rm = TRUE),
+    delta_diff1_mn = min(delta_diff1_ave, na.rm = TRUE),
+    delta_diff1_mx = max(delta_diff1_ave, na.rm = TRUE),
+    # biodiv_em = mean(biodiv_mean, na.rm = TRUE),
+    biodiv_em = mean(biodiv_median, na.rm = TRUE),
+    biodiv_mn = biodiv_em - mean(biodiv_sd, na.rm = TRUE),
+    biodiv_mx = biodiv_em + mean(biodiv_sd, na.rm = TRUE),
+    .groups = "drop"
+  )
 ```
 
 
@@ -2124,6 +2162,269 @@ dev.off()
 ```
 
 
+# High species richness countries
+
+### Look at historical ROCs
+
+Previously we used all biodiv index numbers for countries. What happens if we cut countries with low crenvu species?
+
+```{r}
+hist_moments <- hist_pathways_moments %>% 
+  full_join(biodiv_moments_df, by = "iso_alpha3") %>% 
+  filter(!is.na(hist_diff1_ave) & !is.na(biodiv_median) & !is.na(iso_alpha3))
+
+hist_moments <- hist_moments %>% 
+  dplyr::filter(biodiv_median > 5)
+
+```
+
+Make some annotation label dfs to show correlation coefficients on the plot facets.
+```{r}
+plant_prod_pos_corr <- cor.test(
+  hist_moments %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  hist_moments %>% 
+    filter(hist_diff1_ave > 0 & food_group == "plant products") %>% 
+    # pull(biodiv_mean)
+    pull(biodiv_median)
+)
+animal_prod_pos_corr <- cor.test(
+  hist_moments %>% 
+    filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  hist_moments %>% 
+    filter(hist_diff1_ave > 0 & food_group == "animal products") %>% 
+    # pull(biodiv_mean)
+    pull(biodiv_median)
+)
+fish_prod_pos_corr <- cor.test(
+  hist_moments %>% 
+    filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
+    mutate(hist_diff1_ave = log(hist_diff1_ave)) %>% 
+    pull(hist_diff1_ave), 
+  hist_moments %>% 
+    filter(hist_diff1_ave > 0 & food_group == "fish & seafood") %>% 
+    # pull(biodiv_mean)
+    pull(biodiv_median)
+)
+
+plant_prod_neg_corr <- cor.test(
+  hist_moments %>% 
+    filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  hist_moments %>% 
+    filter(hist_diff1_ave < 0 & food_group == "plant products") %>% 
+    # pull(biodiv_mean)
+    pull(biodiv_median)
+)
+animal_prod_neg_corr <- cor.test(
+  hist_moments %>% 
+    filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  hist_moments %>% 
+    filter(hist_diff1_ave < 0 & food_group == "animal products") %>% 
+    # pull(biodiv_mean)
+    pull(biodiv_median)
+)
+fish_prod_neg_corr <- cor.test(
+  hist_moments %>% 
+    filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
+    mutate(hist_diff1_ave = log(abs(hist_diff1_ave))) %>% 
+    pull(hist_diff1_ave), 
+  hist_moments %>% 
+    filter(hist_diff1_ave < 0 & food_group == "fish & seafood") %>% 
+    # pull(biodiv_mean)
+    pull(biodiv_median)
+)
+
+corval_labs_pos = c(
+  paste0(
+    "r = ",
+    round(plant_prod_pos_corr$estimate, 2),
+    " (p ~ ",
+    signif(plant_prod_pos_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(animal_prod_pos_corr$estimate, 2),
+    " (p ~ ",
+    signif(animal_prod_pos_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(fish_prod_pos_corr$estimate, 2),
+     " (p ~ ",
+    signif(fish_prod_pos_corr$p.value, 1),
+    ")"
+  )
+)
+corval_labs_neg = c(
+  paste0(
+    "r = ",
+    round(plant_prod_neg_corr$estimate, 2),
+    " (p ~ ",
+    signif(plant_prod_neg_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(animal_prod_neg_corr$estimate, 2),
+    " (p ~ ",
+    signif(animal_prod_neg_corr$p.value, 1),
+    ")"
+  ),
+  paste0(
+    "r = ",
+    round(fish_prod_neg_corr$estimate, 2),
+    " (p ~ ",
+    signif(fish_prod_neg_corr$p.value, 1),
+    ")"
+  )
+)
+
+annotate_text <- data.frame(
+  food_group = c("plant products", "animal products", "fish & seafood"),
+  corval_labs_pos, 
+  corval_labs_neg
+)
+```
+
+Plot the historical data.
+```{r}
+p_pos0 <- ggplot(
+  data = hist_moments %>%
+    dplyr::filter(food_group != "fish & seafood") %>%
+    filter(hist_diff1_ave > 0),
+  aes(x = hist_diff1_ave,
+      y = biodiv_median)
+) +
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) +
+  geom_errorbar(
+    aes(
+      xmin = hist_diff1_ave - hist_diff1_sdv,
+      xmax = hist_diff1_ave + hist_diff1_sdv
+    ),
+    colour = scales::muted("blue"),
+    # width = .2,
+    alpha = 0.5
+  ) +
+  geom_errorbar(
+    aes(ymin = biodiv_median - biodiv_sd, ymax = biodiv_median + biodiv_sd),
+    colour = scales::muted("blue"),
+    # width = .2,
+    alpha = 0.5
+  ) +
+  geom_smooth(colour = "firebrick",
+              method = "lm",
+              fill = NA) +
+  theme_bw() +
+  theme(
+    title = element_text(size = 10),
+    legend.position = "top",
+    legend.title = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "High biodiveristy countries have experienced more rapid speed-ups in historical supply",
+    x = "Average FAO historical ROC (kt/yr)",
+    y = biodiv_index
+  ) +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x)
+      10 ^ x),
+    labels = scales::trans_format("log10", scales::math_format(10 ^
+                                                                 .x))
+  ) +
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) +
+  annotation_logticks(sides = "b", size = 0.4)
+
+p_pos <- p_pos0 +
+  geom_text(
+    data    = annotate_text %>%
+      dplyr::filter(food_group != "fish & seafood"),
+    mapping = aes(x = 10, y = 44, label = corval_labs_pos),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) +
+  facet_wrap(~ food_group)
+
+p_neg0 <- ggplot(
+  data = hist_moments %>%
+    dplyr::filter(food_group != "fish & seafood") %>%
+    dplyr::filter(hist_diff1_ave < 0),
+  aes(x = abs(hist_diff1_ave),
+      y = biodiv_median)
+) +
+  geom_point(colour = scales::muted("blue"), alpha = 0.5) +
+  geom_errorbar(
+    aes(
+      xmin = hist_diff1_ave - hist_diff1_sdv,
+      xmax = hist_diff1_ave + hist_diff1_sdv
+    ),
+    colour = scales::muted("blue"),
+    # width = .2,
+    alpha = 0.5
+  ) +
+  geom_errorbar(
+    aes(ymin = biodiv_median - biodiv_sd, 
+        ymax = biodiv_median + biodiv_sd
+        ),
+    colour = scales::muted("blue"),
+    # width = .2,
+    alpha = 0.5
+  ) +
+  geom_smooth(colour = "firebrick",
+              method = "lm",
+              fill = NA) +
+  theme_bw() +
+  theme(
+    title = element_text(size = 10),
+    legend.position = "top",
+    legend.title = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  labs(title = "Slow-downs in historical supply have no correlation with biodiversity",
+       x = "Average FAO historical ROC (kt/yr)",
+       y = biodiv_index) +
+  scale_x_log10(
+    breaks = scales::trans_breaks("log10", function(x) {
+      tmp <- abs(x)
+      10 ^ tmp
+    }),
+    labels = scales::trans_format("log10", scales::math_format(-10 ^
+                                                                 .x))
+  ) +
+  coord_cartesian(xlim = c(-1e-2, 1.5e4)) +
+  annotation_logticks(sides = "b", size = 0.4)
+p_neg <- p_neg0 +
+  geom_text(
+    data    = annotate_text %>%
+      dplyr::filter(food_group != "fish & seafood"),
+    mapping = aes(x = 10, y = 44, label = corval_labs_neg),
+    hjust   = 0.4,
+    vjust   = 0.9,
+    size = 3
+  ) +
+  facet_wrap(~ food_group) 
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+cowplot::plot_grid(p_pos, p_neg, ncol = 1)
+png(filename = "~/Documents/Data/Output/hist_plots_cut.png", width = 600, height = 400)
+cowplot::plot_grid(p_pos, p_neg, ncol = 1)
+dev.off()
+```
+
+####
 
 ```{r}
 p_path_pos0 <- ggplot(data = pathways_biodiv_moments_em %>% 
