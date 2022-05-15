@@ -2166,7 +2166,98 @@ dev.off()
 
 ### Look at historical ROCs
 
-Previously we used all biodiv index numbers for countries. What happens if we cut countries with low crenvu species?
+- Previously we used all biodiv index numbers for countries. What happens if we cut countries with low crenvu species?
+
+- species richness normalized by country size
+```{r}
+biodiv_data <- speciesrichness_data
+
+# used for ease of making plot labels below
+if(identical(raster::values(biodiv_data), raster::values(crenvu_data))) {
+  biodiv_index = "critically endangered & \nvulnerable species"
+} else {
+  biodiv_index = "species richness"
+}
+```
+
+Loop over iso3 codes to make a list of biodiveristy rasters for each country.
+```{r}
+biodiv_country_rast <- list()
+for (country_iso3 in country_iso3_codes) {
+  biodiv_sub <-
+    crop(biodiv_data, extent(borders_only_sub[borders_only_sub$iso3 == country_iso3,]))
+  biodiv_country_rast[[country_iso3]] <-
+    mask(biodiv_sub, borders_only_sub[borders_only_sub$iso3 == country_iso3,])
+}
+```
+
+
+```{r}
+get_raster_summary <- function(x) {
+  tmp1 <- raster::values(x) %>%
+    na.omit() %>%
+    summary() %>%
+    as.vector()
+  
+  tmp2 <- raster::values(x) %>%
+    na.omit() %>%
+    sd()
+  
+  tmp3 <- raster::values(x) %>%
+    na.omit() %>%
+    length()
+  
+  return(data.frame(
+    names = c(
+      "min",
+      "first_quart",
+      "median",
+      "mean",
+      "third_quart",
+      "max",
+      "sd",
+      "ncount"
+    ),
+    biodiv = c(tmp1, tmp2, tmp3)
+  ))
+}
+
+biodiv_country_moments <-
+  lapply(biodiv_country_rast, FUN = get_raster_summary)
+```
+
+## Species Richness Analysis
+Make a list of countries by median biodiversity.
+```{r}
+median_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][3]
+}
+mean_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][4]
+}
+sd_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][7]
+}
+ncount_vals <- function(x) {
+  biodiv_country_moments[[x]][[2]][8]
+}
+
+median_tmp <- lapply(names(biodiv_country_moments), FUN = median_vals)
+mean_tmp <- lapply(names(biodiv_country_moments), FUN = mean_vals)
+sd_tmp <- lapply(names(biodiv_country_moments), FUN = sd_vals)
+ncount_tmp <- lapply(names(biodiv_country_moments), FUN = ncount_vals)
+
+biodiv_moments_df <- data.frame(
+  iso_alpha3 = names(biodiv_country_moments),
+  biodiv_median = unlist(median_tmp), 
+  biodiv_mean = unlist(mean_tmp), 
+  biodiv_sd = unlist(sd_tmp), 
+  biodiv_ncount = unlist(ncount_tmp)
+)
+
+rm(median_tmp, mean_tmp, sd_tmp, ncount_tmp)
+```
+
 
 ```{r}
 hist_moments <- hist_pathways_moments %>% 
